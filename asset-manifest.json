@@ -1,0 +1,23 @@
+{
+  "files": {
+    "main.js": "/proyectocanones/static/js/main.f201bece.js",
+    "static/js/45.8d176786.chunk.js": "/proyectocanones/static/js/45.8d176786.chunk.js",
+    "static/js/915.664d34e3.js": "/proyectocanones/static/js/915.664d34e3.js",
+    "static/media/MaterialCommunityIcons.ttf": "/proyectocanones/static/media/MaterialCommunityIcons.5d42b4e60858731e7b65.ttf",
+    "static/media/MaterialIcons.ttf": "/proyectocanones/static/media/MaterialIcons.f20305dee9d396fea5c7.ttf",
+    "static/media/FontAwesome.ttf": "/proyectocanones/static/media/FontAwesome.1e59d2330b4c6deb84b3.ttf",
+    "favicon.ico": "/proyectocanones/favicon.ico",
+    "index.html": "/proyectocanones/index.html",
+    "favicon-32.png": "/proyectocanones/favicon-32.png",
+    "manifest.json": "/proyectocanones/manifest.json",
+    "favicon-16.png": "/proyectocanones/favicon-16.png",
+    "serve.json": "/proyectocanones/serve.json",
+    "main.f201bece.js.map": "/proyectocanones/static/js/main.f201bece.js.map",
+    "45.8d176786.chunk.js.map": "/proyectocanones/static/js/45.8d176786.chunk.js.map",
+    "915.664d34e3.js.map": "/proyectocanones/static/js/915.664d34e3.js.map"
+  },
+  "entrypoints": [
+    "static/js/915.664d34e3.js",
+    "static/js/main.f201bece.js"
+  ]
+}
