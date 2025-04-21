@@ -1,11 +1,14 @@
 {
   "name": "miapp",
   "version": "1.0.0",
+  "homepage": "http://DevDanielC.github.io/prestamocanones",
   "main": "index.js",
   "extra": {
     "newArchEnabled": true
   },
   "scripts": {
+    "predeploy": "npm run build",
+    "deploy": "gh-pages -d build",
     "start": "expo start",
     "android": "expo run:android",
     "ios": "expo run:ios",
