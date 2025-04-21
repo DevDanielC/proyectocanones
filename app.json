@@ -1,0 +1,99 @@
+{
+  "expo": {
+    "name": "MiApp",
+    "slug": "MiApp",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/logo.png",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "image": "./assets/logo.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
+    "updates": {
+      "fallbackToCacheTimeout": 0
+    },
+    "assetBundlePatterns": ["**/*"],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.anonymous.MiApp",
+      "buildNumber": "1.0.0",
+      "infoPlist": {
+        "NSCameraUsageDescription": "Esta app necesita acceso a la cámara para escanear códigos QR de equipos",
+        "NSMicrophoneUsageDescription": "Esta app necesita acceso al micrófono para grabar video (opcional)",
+        "NSPhotoLibraryUsageDescription": "Permite acceder a tus fotos para subir imágenes de perfil",
+        "NSPhotoLibraryAddUsageDescription": "Permite guardar imágenes en tu galería"
+      },
+      "config": {
+        "usesNonExemptEncryption": false
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#ffffff"
+      },
+      "package": "com.anonymous.MiApp",
+      "versionCode": 1,
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE"
+      ],
+      "config": {
+        "googleMaps": {
+          "apiKey": ""
+        }
+      }
+    },
+    "web": {
+      "favicon": "./assets/logo.png",
+      "config": {
+        "firebase": {
+          "apiKey": "",
+          "authDomain": "",
+          "projectId": "",
+          "storageBucket": "",
+          "messagingSenderId": "",
+          "appId": "",
+          "measurementId": ""
+        }
+      }
+    },
+    "extra": {
+      "supabaseUrl": "https://dqiynypelfrofpyodrtx.supabase.co",
+      "supabaseKey": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRxaXlueXBlbGZyb2ZweW9kcnR4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDQ1NjMyNzgsImV4cCI6MjA2MDEzOTI3OH0.nTYDHWCzZmufRlNJJOcPfxve9TBToj1BUtrFsB33zI4",
+      "eas": {
+        "projectId": "08f593e1-809e-4776-bab1-f132f1d42896"
+      }
+    },
+    "plugins": [
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Necesitamos acceso a la cámara para escanear códigos QR de equipos",
+          "microphonePermission": false
+        }
+      ],
+      [
+        "expo-barcode-scanner",
+        {
+          "cameraPermission": "Permiso para escanear códigos de barras y QR"
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "La app necesita acceso a tus fotos para subir imágenes",
+          "cameraPermission": "Permiso para tomar fotos con la cámara"
+        }
+      ]
+    ],
+    "runtimeVersion": {
+      "policy": "sdkVersion"
+    },
+    "owner": "josem_02"
+  }
+}

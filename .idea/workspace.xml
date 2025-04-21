@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="AutoImportSettings">
+    <option name="autoReloadType" value="NONE" />
+  </component>
+  <component name="ChangeListManager">
+    <list default="true" id="6ac08052-7b72-44ba-80a4-541e08e4c887" name="Changes" comment="">
+      <change afterPath="$PROJECT_DIR$/assets/logo.png" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/index.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app.json" beforeDir="false" afterPath="$PROJECT_DIR$/app.json" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/index.html" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/package-lock.json" beforeDir="false" afterPath="$PROJECT_DIR$/package-lock.json" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/package.json" beforeDir="false" afterPath="$PROJECT_DIR$/package.json" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/lib/supabase.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/lib/supabase.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/screens/App.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/screens/App.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/screens/Auth/AuthScreen.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/screens/Auth/AuthScreen.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/screens/Auth/LoginScreen.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/screens/Auth/LoginScreen.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/screens/Auth/RegisterAdminScreen.js" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/screens/Auth/RegisterScreen.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/screens/Auth/RegisterScreen.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/screens/Categories/AgregarCategorias.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/screens/Categories/AgregarCategorias.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/screens/Categories/VerCategorias.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/screens/Categories/VerCategorias.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/screens/DetallesEquipoScreen.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/screens/DetallesEquipoScreen.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/screens/Equipment/ModificarEquipos.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/screens/Equipment/ModificarEquipos.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/screens/Equipment/VerEquipos.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/screens/Equipment/VerEquipos.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/screens/Maintenance/AgregarMantenimiento.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/screens/Maintenance/AgregarMantenimiento.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/screens/Maintenance/DevolverMantenimiento.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/screens/Maintenance/DevolverMantenimiento.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/screens/Operations/DevolucionesScreen.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/screens/Operations/DevolucionesScreen.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/screens/Operations/PrestamosScreen.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/screens/Operations/PrestamosScreen.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/screens/Reports/HistorialPrestamosScreen.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/screens/Reports/HistorialPrestamosScreen.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/screens/Reports/ReporteMantenimiento.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/screens/Reports/ReporteMantenimiento.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/screens/Users/AgregarUsuarios.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/screens/Users/AgregarUsuarios.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/screens/Users/ModificarUsuarios.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/screens/Users/ModificarUsuarios.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/screens/Users/VerUsuarios.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/screens/Users/VerUsuarios.js" afterDir="false" />
+    </list>
+    <option name="SHOW_DIALOG" value="false" />
+    <option name="HIGHLIGHT_CONFLICTS" value="true" />
+    <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
+    <option name="LAST_RESOLUTION" value="IGNORE" />
+  </component>
+  <component name="ClangdSettings">
+    <option name="formatViaClangd" value="false" />
+  </component>
+  <component name="Git.Settings">
+    <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
+  </component>
+  <component name="ProjectColorInfo">{
+  &quot;associatedIndex&quot;: 4
+}</component>
+  <component name="ProjectId" id="2vOAa6cpQlU2cYtQb7QoNhA6f9o" />
+  <component name="ProjectViewState">
+    <option name="hideEmptyMiddlePackages" value="true" />
+    <option name="showLibraryContents" value="true" />
+  </component>
+  <component name="PropertiesComponent"><![CDATA[{
+  "keyToString": {
+    "RunOnceActivity.ShowReadmeOnStart": "true",
+    "RunOnceActivity.cidr.known.project.marker": "true",
+    "RunOnceActivity.git.unshallow": "true",
+    "RunOnceActivity.readMode.enableVisualFormatting": "true",
+    "cf.first.check.clang-format": "false",
+    "cidr.known.project.marker": "true",
+    "dart.analysis.tool.window.visible": "false",
+    "git-widget-placeholder": "main",
+    "kotlin-language-version-configured": "true",
+    "last_opened_file_path": "/Users/josemendoza/MiApp",
+    "settings.editor.selected.configurable": "AndroidSdkUpdater",
+    "show.migrate.to.gradle.popup": "false",
+    "structure.view.defaults.are.configured": "true"
+  }
+}]]></component>
+  <component name="SpellCheckerSettings" RuntimeDictionaries="0" Folders="0" CustomDictionaries="0" DefaultDictionary="application-level" UseSingleDictionary="true" transferred="true" />
+  <component name="TaskManager">
+    <task active="true" id="Default" summary="Default task">
+      <changelist id="6ac08052-7b72-44ba-80a4-541e08e4c887" name="Changes" comment="" />
+      <created>1744005806504</created>
+      <option name="number" value="Default" />
+      <option name="presentableId" value="Default" />
+      <updated>1744005806504</updated>
+    </task>
+    <servers />
+  </component>
+</project>
