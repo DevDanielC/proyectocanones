@@ -36,24 +36,49 @@ const HistorialPrestamosScreen = () => {
   const [directorNombre, setDirectorNombre] = useState('Lic. Juan Pérez');
   const [modalVisible, setModalVisible] = useState(false);
   const [nuevoNombre, setNuevoNombre] = useState('');
-  const [fechaInicio, setFechaInicio] = useState(new Date());
-  const [fechaFin, setFechaFin] = useState(new Date());
+  
+  // Estados para manejo de fechas mejorado
+  const [fechaInicio, setFechaInicio] = useState(() => {
+    const date = new Date();
+    date.setHours(0, 0, 0, 0);
+    return date;
+  });
+  const [fechaFin, setFechaFin] = useState(() => {
+    const date = new Date();
+    date.setHours(23, 59, 59, 999);
+    return date;
+  });
   const [showDatePickerInicio, setShowDatePickerInicio] = useState(false);
   const [showDatePickerFin, setShowDatePickerFin] = useState(false);
-  const [filtroAccion, setFiltroAccion] = useState('Todos');
   const [detalleModalVisible, setDetalleModalVisible] = useState(false);
   const [detalleSeleccionado, setDetalleSeleccionado] = useState(null);
 
+  // Función mejorada para formatear fechas
   const formatDateForInput = (date) => {
+    if (!date) return '';
     const year = date.getFullYear();
     const month = String(date.getMonth() + 1).padStart(2, '0');
     const day = String(date.getDate()).padStart(2, '0');
     return `${year}-${month}-${day}`;
   };
 
-  const handleWebDateChange = (dateString, setDateFunction) => {
+  // Función mejorada para manejar cambio de fechas en web
+  const handleWebDateChange = (dateString, setDateFunction, isEndOfDay = false) => {
+    if (!dateString) return;
+    
     const dateParts = dateString.split('-');
-    const newDate = new Date(dateParts[0], dateParts[1] - 1, dateParts[2]);
+    const year = parseInt(dateParts[0]);
+    const month = parseInt(dateParts[1]) - 1;
+    const day = parseInt(dateParts[2]);
+    
+    const newDate = new Date(year, month, day);
+    
+    if (isEndOfDay) {
+      newDate.setHours(23, 59, 59, 999);
+    } else {
+      newDate.setHours(0, 0, 0, 0);
+    }
+    
     setDateFunction(newDate);
     fetchHistorial();
   };
@@ -70,6 +95,16 @@ const HistorialPrestamosScreen = () => {
     loadDirectorName();
     fetchHistorial();
   }, []);
+
+  // Función para formatear fecha legible
+  const formatDateReadable = (date) => {
+    if (!date) return 'N/A';
+    return date.toLocaleDateString('es-ES', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric'
+    });
+  };
 
   const saveDirectorName = async () => {
     if (!nuevoNombre.trim()) {
@@ -92,7 +127,7 @@ const HistorialPrestamosScreen = () => {
     setRefreshing(true);
     
     try {
-      let query = supabase
+      const { data, error } = await supabase
         .from('historial_prestamos')
         .select(`
           idhistorial,
@@ -125,16 +160,9 @@ const HistorialPrestamosScreen = () => {
         .gte('fechaaccion', fechaInicio.toISOString())
         .lte('fechaaccion', fechaFin.toISOString())
         .order('fechaaccion', { ascending: false });
-  
-      // Aplicar filtro por acción si no es "Todos"
-      if (filtroAccion !== 'Todos') {
-        query = query.eq('accion', filtroAccion);
-      }
-  
-      const { data, error } = await query;
-  
+
       if (error) throw error;
-  
+
       const historialFormateado = data?.map(item => ({
         idhistorial: item.idhistorial,
         idprestamo: item.idprestamo,
@@ -150,7 +178,7 @@ const HistorialPrestamosScreen = () => {
         fechaPrestamo: item.prestamos?.fechaprestamo,
         fechaDevolucion: item.prestamos?.fechadevolucion_real
       })) || [];
-  
+
       setHistorial(historialFormateado);
       
     } catch (error) {
@@ -162,10 +190,18 @@ const HistorialPrestamosScreen = () => {
     }
   };
 
-  const handleDateChange = (date, setDate, setShowPicker) => {
+  // Manejo de fechas mejorado para móvil
+  const handleDateChange = (event, selectedDate, setDate, setShowPicker, isEndOfDay = false) => {
     setShowPicker(false);
-    if (date) {
-      setDate(date);
+    
+    if (selectedDate) {
+      const adjustedDate = new Date(selectedDate);
+      if (isEndOfDay) {
+        adjustedDate.setHours(23, 59, 59, 999);
+      } else {
+        adjustedDate.setHours(0, 0, 0, 0);
+      }
+      setDate(adjustedDate);
       fetchHistorial();
     }
   };
@@ -188,7 +224,6 @@ const HistorialPrestamosScreen = () => {
               h1 { color: #2c3e50; margin: 5px 0; font-size: 24px; }
               .subtitle { color: #7f8c8d; font-size: 14px; }
               .date-range { margin: 10px 0; font-size: 14px; color: #34495e; }
-              .filter-info { margin: 10px 0; font-size: 14px; font-style: italic; }
               table { width: 100%; border-collapse: collapse; margin: 20px 0; font-size: 14px; }
               th, td { padding: 12px 8px; border: 1px solid #ddd; text-align: left; }
               th { background-color: #f8f9fa; font-weight: bold; color: #34495e; }
@@ -214,10 +249,7 @@ const HistorialPrestamosScreen = () => {
                 day: 'numeric' 
               })}</p>
               <p class="date-range">
-                Período: ${fechaInicio.toLocaleDateString('es-ES')} - ${fechaFin.toLocaleDateString('es-ES')}
-              </p>
-              <p class="filter-info">
-                Filtro: ${filtroAccion === 'Todos' ? 'Todas las acciones' : `Solo acciones de tipo: ${filtroAccion}`}
+                Período: ${formatDateReadable(fechaInicio)} - ${formatDateReadable(fechaFin)}
               </p>
             </div>
             
@@ -240,7 +272,7 @@ const HistorialPrestamosScreen = () => {
                                item.accion === 'Devolución' ? 'accion-devolucion' : 'accion-otro'}">
                       ${item.accion}
                     </td>
-                    <td>${new Date(item.fechaaccion).toLocaleString('es-ES')}</td>
+                    <td>${item.fechaaccion ? new Date(item.fechaaccion).toLocaleString('es-ES') : 'N/A'}</td>
                     <td>${item.nombreUsuario}${item.departamento ? ` (${item.departamento})` : ''}</td>
                     <td>${item.estadoPrestamo}</td>
                     <td>${item.detalles || 'N/A'}</td>
@@ -303,7 +335,7 @@ const HistorialPrestamosScreen = () => {
             item.accion === 'Préstamo' && styles.subtitlePrestamo,
             item.accion === 'Devolución' && styles.subtitleDevolucion
           ]}>
-            {item.accion} • {new Date(item.fechaaccion).toLocaleDateString('es-ES')}
+            {item.accion} • {item.fechaaccion ? new Date(item.fechaaccion).toLocaleDateString('es-ES') : 'N/A'}
           </Text>
         </View>
         <View style={[
@@ -342,7 +374,7 @@ const HistorialPrestamosScreen = () => {
       <View style={styles.detailRow}>
         <MaterialCommunityIcons name="clock-outline" size={16} color="#4a6da7" />
         <Text style={styles.detailText}>
-          {new Date(item.fechaaccion).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}
+          {item.fechaaccion ? new Date(item.fechaaccion).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }) : 'N/A'}
         </Text>
       </View>
     </TouchableOpacity>
@@ -387,66 +419,6 @@ const HistorialPrestamosScreen = () => {
         </View>
 
         <View style={styles.filterContainer}>
-          <View style={styles.filterRow}>
-            <Text style={styles.filterLabel}>Filtrar por:</Text>
-            
-            <View style={styles.filterOptions}>
-              <TouchableOpacity 
-                style={[
-                  styles.filterOption, 
-                  filtroAccion === 'Todos' && styles.filterOptionActive
-                ]}
-                onPress={() => {
-                  setFiltroAccion('Todos');
-                  fetchHistorial();
-                }}
-              >
-                <Text style={[
-                  styles.filterOptionText,
-                  filtroAccion === 'Todos' && styles.filterOptionTextActive
-                ]}>
-                  Todos
-                </Text>
-              </TouchableOpacity>
-              
-              <TouchableOpacity 
-                style={[
-                  styles.filterOption, 
-                  filtroAccion === 'Préstamo' && styles.filterOptionActive
-                ]}
-                onPress={() => {
-                  setFiltroAccion('Préstamo');
-                  fetchHistorial();
-                }}
-              >
-                <Text style={[
-                  styles.filterOptionText,
-                  filtroAccion === 'Préstamo' && styles.filterOptionTextActive
-                ]}>
-                  Préstamos
-                </Text>
-              </TouchableOpacity>
-              
-              <TouchableOpacity 
-                style={[
-                  styles.filterOption, 
-                  filtroAccion === 'Devolución' && styles.filterOptionActive
-                ]}
-                onPress={() => {
-                  setFiltroAccion('Devolución');
-                  fetchHistorial();
-                }}
-              >
-                <Text style={[
-                  styles.filterOptionText,
-                  filtroAccion === 'Devolución' && styles.filterOptionTextActive
-                ]}>
-                  Devoluciones
-                </Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-          
           <View style={styles.dateFilterContainer}>
             {isWeb ? (
               <>
@@ -468,7 +440,7 @@ const HistorialPrestamosScreen = () => {
                   <input 
                     type="date"
                     value={formatDateForInput(fechaFin)}
-                    onChange={(e) => handleWebDateChange(e.target.value, setFechaFin)}
+                    onChange={(e) => handleWebDateChange(e.target.value, setFechaFin, true)}
                     style={styles.webDateInput}
                     min={formatDateForInput(fechaInicio)}
                     max={formatDateForInput(new Date())}
@@ -483,7 +455,7 @@ const HistorialPrestamosScreen = () => {
                 >
                   <MaterialIcons name="calendar-today" size={16} color="#4a6da7" />
                   <Text style={styles.dateText}>
-                    Inicio: {fechaInicio.toLocaleDateString('es-ES')}
+                    Inicio: {formatDateReadable(fechaInicio)}
                   </Text>
                 </TouchableOpacity>
                 
@@ -495,7 +467,7 @@ const HistorialPrestamosScreen = () => {
                 >
                   <MaterialIcons name="calendar-today" size={16} color="#4a6da7" />
                   <Text style={styles.dateText}>
-                    Fin: {fechaFin.toLocaleDateString('es-ES')}
+                    Fin: {formatDateReadable(fechaFin)}
                   </Text>
                 </TouchableOpacity>
                 
@@ -504,7 +476,7 @@ const HistorialPrestamosScreen = () => {
                     value={fechaInicio}
                     mode="date"
                     display={Platform.OS === 'ios' ? 'inline' : 'default'}
-                    onChange={(event, date) => handleDateChange(date, setFechaInicio, setShowDatePickerInicio)}
+                    onChange={(event, date) => handleDateChange(event, date, setFechaInicio, setShowDatePickerInicio)}
                     maximumDate={new Date()}
                   />
                 )}
@@ -514,7 +486,7 @@ const HistorialPrestamosScreen = () => {
                     value={fechaFin}
                     mode="date"
                     display={Platform.OS === 'ios' ? 'inline' : 'default'}
-                    onChange={(event, date) => handleDateChange(date, setFechaFin, setShowDatePickerFin)}
+                    onChange={(event, date) => handleDateChange(event, date, setFechaFin, setShowDatePickerFin, true)}
                     minimumDate={fechaInicio}
                     maximumDate={new Date()}
                   />
@@ -524,6 +496,7 @@ const HistorialPrestamosScreen = () => {
           </View>
         </View>
 
+        {/* Resto del código (modales, etc.) se mantiene igual */}
         <Modal 
           visible={modalVisible} 
           transparent={true}
@@ -693,6 +666,7 @@ const HistorialPrestamosScreen = () => {
   );
 };
 
+// Los estilos se mantienen igual que en la versión anterior
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
@@ -752,39 +726,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#ffffff',
     borderBottomWidth: 1,
     borderBottomColor: '#e0e0e0',
-  },
-  filterRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 10,
-  },
-  filterLabel: {
-    fontSize: 14,
-    color: '#6c757d',
-  },
-  filterOptions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  filterOption: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
-    marginLeft: 8,
-    borderWidth: 1,
-    borderColor: '#e0e0e0',
-  },
-  filterOptionActive: {
-    backgroundColor: '#4a6da7',
-    borderColor: '#4a6da7',
-  },
-  filterOptionText: {
-    fontSize: 12,
-    color: '#6c757d',
-  },
-  filterOptionTextActive: {
-    color: '#FFF',
   },
   dateFilterContainer: {
     flexDirection: 'row',

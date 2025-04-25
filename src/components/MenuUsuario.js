@@ -26,12 +26,13 @@ const IS_RTL = I18nManager.isRTL;
 
 const menuItems = [
   {
-    title: 'Equipos',
+    title: 'Solicitar Préstamo',
     icon: 'devices-other',
-    subItems: [
-      { title: 'Solicitar Préstamo', icon: 'add', route: 'SolicitarPrestamo' },
-      { title: 'Mis Devoluciones', icon: 'assignment-return', route: 'DevolucionesUsuarios' }
-    ]
+    route: 'SolicitarPrestamo' 
+  },
+      { title: 'Mis Devoluciones',
+         icon: 'assignment-return',
+          route: 'DevolucionesUsuarios'
   },
 ];
 

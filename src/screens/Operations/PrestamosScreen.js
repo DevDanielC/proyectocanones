@@ -6,39 +6,61 @@ import {
   TouchableOpacity, 
   Modal, 
   FlatList, 
-  TextInput, 
   ActivityIndicator, 
-  Alert, 
   ScrollView,
   SafeAreaView,
   StatusBar,
+  Dimensions,
   Platform
 } from 'react-native';
 import { MaterialIcons, FontAwesome } from '@expo/vector-icons';
 import { supabase } from '../../lib/supabase';
-import MenuAdmin from '../../components/MenuAdmin';
 import QRScannerModal from '../../components/QRScannerModal';
+
+const { width } = Dimensions.get('window');
+const isMobile = width < 768;
+const isWeb = Platform.OS === 'web';
+const MAX_CONTENT_WIDTH = 1200;
 
 const PrestamosScreen = ({ navigation }) => {
   // Estados para datos y carga
   const [categorias, setCategorias] = useState([]);
   const [equiposDisponibles, setEquiposDisponibles] = useState([]);
-  const [personalDisponible, setPersonalDisponible] = useState([]);
   const [loading, setLoading] = useState(true);
   
-  // Estados para modales y selecciones
+  // Estados para modales
   const [modalEquiposVisible, setModalEquiposVisible] = useState(false);
-  const [modalPersonalVisible, setModalPersonalVisible] = useState(false);
   const [scannerVisible, setScannerVisible] = useState(false);
-  const [menuVisible, setMenuVisible] = useState(false);
   
-  // Estados para búsqueda y selección
-  const [searchTerm, setSearchTerm] = useState('');
+  // Estados para selección
   const [categoriaSeleccionada, setCategoriaSeleccionada] = useState(null);
   const [equipoSeleccionado, setEquipoSeleccionado] = useState(null);
-  const [personalSeleccionado, setPersonalSeleccionado] = useState(null);
   const [equipoPreseleccionado, setEquipoPreseleccionado] = useState(null);
-  const [personalPreseleccionado, setPersonalPreseleccionado] = useState(null);
+  const [currentUser, setCurrentUser] = useState(null);
+
+  // Estados para mensajes
+  const [showSuccessMessage, setShowSuccessMessage] = useState(false);
+  const [successMessage, setSuccessMessage] = useState('');
+  const [showErrorMessage, setShowErrorMessage] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
+
+  // Mostrar mensaje de éxito
+  const showSuccess = (message) => {
+    setSuccessMessage(message);
+    setShowSuccessMessage(true);
+    setTimeout(() => setShowSuccessMessage(false), 3000);
+  };
+
+  // Mostrar mensaje de error
+  const showError = (message) => {
+    setErrorMessage(message);
+    setShowErrorMessage(true);
+    setTimeout(() => setShowErrorMessage(false), 3000);
+    
+    if (isWeb) {
+      console.error(message);
+    }
+  };
 
   // Cargar datos iniciales
   useEffect(() => {
@@ -46,6 +68,21 @@ const PrestamosScreen = ({ navigation }) => {
       try {
         setLoading(true);
         
+        // Obtener usuario actual
+        const { data: { user }, error: userError } = await supabase.auth.getUser();
+        if (userError) throw userError;
+
+        if (user) {
+          const { data: usuarioData, error: usuarioError } = await supabase
+            .from('usuarios')
+            .select('*')
+            .eq('idusuario', user.id)
+            .single();
+          
+          if (usuarioError) throw usuarioError;
+          setCurrentUser(usuarioData);
+        }
+
         // Obtener categorías
         const { data: categoriasData, error: errorCategorias } = await supabase
           .from('categoriasequipos')
@@ -54,21 +91,12 @@ const PrestamosScreen = ({ navigation }) => {
           .order('nombrecategoria', { ascending: true });
         
         if (errorCategorias) throw errorCategorias;
+        
         setCategorias(categoriasData || []);
-        
-        // Obtener personal
-        const { data: personalData, error: errorPersonal } = await supabase
-          .from('personal')
-          .select('idpersonal, nombre_completo, tipo_persona, estado')
-          .eq('estado', 'activo')
-          .order('nombre_completo', { ascending: true });
-        
-        if (errorPersonal) throw errorPersonal;
-        setPersonalDisponible(personalData || []);
         
       } catch (error) {
         console.error('Error cargando datos:', error);
-        Alert.alert('Error', 'No se pudieron cargar los datos iniciales');
+        showError('No se pudieron cargar los datos iniciales');
       } finally {
         setLoading(false);
       }
@@ -100,10 +128,7 @@ const PrestamosScreen = ({ navigation }) => {
       if (error) throw error;
   
       if (!equiposData || equiposData.length === 0) {
-        Alert.alert(
-          'Sin equipos', 
-          `No hay equipos registrados en la categoría "${categoria.nombrecategoria}"`
-        );
+        showError(`No hay equipos registrados en la categoría "${categoria.nombrecategoria}"`);
         return;
       }
   
@@ -113,7 +138,7 @@ const PrestamosScreen = ({ navigation }) => {
   
     } catch (error) {
       console.error('Error:', error);
-      Alert.alert('Error', 'Falló al cargar equipos');
+      showError('Falló al cargar equipos');
     } finally {
       setLoading(false);
     }
@@ -126,17 +151,6 @@ const PrestamosScreen = ({ navigation }) => {
     setEquipoSeleccionado(equipo);
     setEquipoPreseleccionado(null);
     setModalEquiposVisible(false);
-    setPersonalPreseleccionado(null);
-    setModalPersonalVisible(true);
-  };
-
-  // Manejar selección de personal
-  const handlePersonalSeleccionado = (persona) => {
-    if (!persona) return;
-    
-    setPersonalSeleccionado(persona);
-    setPersonalPreseleccionado(null);
-    setModalPersonalVisible(false);
     confirmarPrestamo();
   };
 
@@ -166,7 +180,7 @@ const PrestamosScreen = ({ navigation }) => {
       
     } catch (error) {
       console.error('Error al buscar equipo:', error);
-      Alert.alert('Error', 'No se pudo encontrar el equipo escaneado');
+      showError('No se pudo encontrar el equipo escaneado');
     } finally {
       setLoading(false);
     }
@@ -174,114 +188,106 @@ const PrestamosScreen = ({ navigation }) => {
 
   // Confirmar préstamo
   const confirmarPrestamo = () => {
-    if (!equipoSeleccionado || !personalSeleccionado) {
-      Alert.alert('Error', 'Debe seleccionar tanto el equipo como el personal');
+    if (!equipoSeleccionado) {
+      showError('Debe seleccionar un equipo');
       return;
     }
 
-    Alert.alert(
-      'Confirmar préstamo',
-      `¿Desea registrar el préstamo de:\n\nEquipo: ${equipoSeleccionado.nombreequipo}\nA: ${personalSeleccionado.nombre_completo}?`,
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        { text: 'Confirmar', onPress: registrarPrestamo }
-      ]
-    );
+    if (!currentUser?.idusuario) {
+      showError('No se pudo identificar al usuario');
+      return;
+    }
+
+    registrarPrestamo();
   };
 
-  // Registrar préstamo en Supabase
-  const registrarPrestamo = async () => {
-    if (!equipoSeleccionado || !personalSeleccionado) return;
-    
-    setLoading(true);
-    try {
-      // Verificar estado del equipo
-      const { data: equipoVerificado, error: errorVerificacion } = await supabase
-        .from('equipos')
-        .select('estado')
-        .eq('idequipo', equipoSeleccionado.idequipo)
-        .single();
-  
-      if (errorVerificacion || !equipoVerificado) {
-        throw new Error('No se pudo verificar el estado del equipo');
-      }
-  
-      if (equipoVerificado.estado !== 'disponible') {
-        throw new Error(`El equipo no está disponible (Estado actual: ${equipoVerificado.estado})`);
-      }
-  
-      // Registrar préstamo
-      const { data: newPrestamo, error: errorPrestamo } = await supabase
-        .from('prestamos')
-        .insert({
-          idpersonal: personalSeleccionado.idpersonal,
-          idequipo: equipoSeleccionado.idequipo,
-          estado: 'Prestado',
-          fechaprestamo: new Date().toISOString(),
-          fechadevolucion_prevista: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
-        })
-        .select('*')
-        .single();
-  
-      if (errorPrestamo || !newPrestamo) {
-        throw errorPrestamo || new Error('No se pudo crear el préstamo');
-      }
-  
-      // Actualizar estado del equipo
-      const { error: errorEquipo } = await supabase
-        .from('equipos')
-        .update({ 
-          estado: 'prestado',
-          fechaactualizacion: new Date().toISOString() 
-        })
-        .eq('idequipo', equipoSeleccionado.idequipo);
-  
-      if (errorEquipo) throw errorEquipo;
-  
-      // Registrar en historial
-      const { error: errorHistorial } = await supabase
-        .from('historial_prestamos')
-        .insert({
-          idprestamo: newPrestamo.idprestamo,
-          idpersonal: personalSeleccionado.idpersonal,
-          accion: 'Préstamo',
-          fechaaccion: new Date().toISOString(),
-          detalles: `Préstamo del equipo ${equipoSeleccionado.nombreequipo} a ${personalSeleccionado.nombre_completo}`
-        });
-  
-      if (errorHistorial) throw errorHistorial;
-  
-      Alert.alert(
-        'Éxito', 
-        `Préstamo registrado:\n\nEquipo: ${equipoSeleccionado.nombreequipo}\nPersona: ${personalSeleccionado.nombre_completo}`,
-        [{ text: 'OK', onPress: resetForm }]
-      );
-      
-    } catch (error) {
-      console.error('Error registrando préstamo:', error);
-      Alert.alert(
-        'Error', 
-        error.message || 'No se pudo registrar el préstamo'
-      );
-    } finally {
-      setLoading(false);
+// Registrar préstamo en Supabase
+const registrarPrestamo = async () => {
+  if (!equipoSeleccionado || !currentUser?.idusuario) {
+    showError('Debe seleccionar un equipo y estar autenticado');
+    return;
+  }
+
+  setLoading(true);
+  try {
+    // Verificar estado del equipo
+    const { data: equipoVerificado, error: errorVerificacion } = await supabase
+      .from('equipos')
+      .select('estado')
+      .eq('idequipo', equipoSeleccionado.idequipo)
+      .single();
+
+    if (errorVerificacion || !equipoVerificado) {
+      throw new Error('No se pudo verificar el estado del equipo');
     }
-  };
+
+    if (equipoVerificado.estado !== 'disponible') {
+      throw new Error(`El equipo no está disponible (Estado actual: ${equipoVerificado.estado})`);
+    }
+
+    // Datos del préstamo (sin idpersonal)
+    const prestamoData = {
+      idequipo: equipoSeleccionado.idequipo,
+      idusuario_prestamo: currentUser.idusuario, // Usamos directamente el UUID del usuario
+      idusuario_registro: currentUser.idusuario,
+      estado: 'Prestado',
+      fechaprestamo: new Date().toISOString(),
+      fechadevolucion_prevista: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
+    };
+
+    const { data: newPrestamo, error: errorPrestamo } = await supabase
+      .from('prestamos')
+      .insert(prestamoData)
+      .select('*')
+      .single();
+
+    if (errorPrestamo || !newPrestamo) {
+      throw errorPrestamo || new Error('No se pudo crear el préstamo');
+    }
+
+    // Actualizar estado del equipo
+    const { error: errorEquipo } = await supabase
+      .from('equipos')
+      .update({ 
+        estado: 'prestado',
+        fechaactualizacion: new Date().toISOString() 
+      })
+      .eq('idequipo', equipoSeleccionado.idequipo);
+
+    if (errorEquipo) throw errorEquipo;
+
+    // Registrar en historial (también actualizado)
+    const historialData = {
+      idprestamo: newPrestamo.idprestamo,
+      idusuario: currentUser.idusuario, // Usamos el UUID del usuario
+      accion: 'Préstamo',
+      fechaaccion: new Date().toISOString(),
+      detalles: `Préstamo del equipo ${equipoSeleccionado.nombreequipo} al usuario ${currentUser.nombreusuario}`
+    };
+
+    const { error: errorHistorial } = await supabase
+      .from('historial_prestamos')
+      .insert(historialData);
+
+    if (errorHistorial) throw errorHistorial;
+
+    showSuccess(`Préstamo registrado: ${equipoSeleccionado.nombreequipo} a ${currentUser.nombreusuario}`);
+    resetForm();
+    
+  } catch (error) {
+    console.error('Error registrando préstamo:', error);
+    showError(error.message || 'No se pudo registrar el préstamo');
+  } finally {
+    setLoading(false);
+  }
+};
 
   // Resetear formulario
   const resetForm = () => {
     setEquipoSeleccionado(null);
-    setPersonalSeleccionado(null);
     setCategoriaSeleccionada(null);
-    setSearchTerm('');
     setEquipoPreseleccionado(null);
-    setPersonalPreseleccionado(null);
   };
-
-  // Filtrar personal según búsqueda
-  const filteredPersonal = personalDisponible.filter(persona =>
-    persona.nombre_completo.toLowerCase().includes(searchTerm.toLowerCase())
-  );
 
   // Renderizar categorías
   const renderCategoriaCard = ({ item }) => (
@@ -360,75 +366,20 @@ const PrestamosScreen = ({ navigation }) => {
     </TouchableOpacity>
   );
 
-  // Renderizar personal
-  const renderPersonalItem = ({ item }) => (
-    <TouchableOpacity 
-      style={[
-        styles.listItem,
-        personalPreseleccionado?.idpersonal === item.idpersonal && styles.itemPreselected,
-        personalSeleccionado?.idpersonal === item.idpersonal && styles.itemSelected,
-        item.estado === 'inactivo' && styles.itemDisabled
-      ]} 
-      onPress={() => {
-        if (item.estado === 'activo') {
-          setPersonalPreseleccionado(item);
-        }
-      }}
-      onLongPress={() => {
-        if (item.estado === 'activo') {
-          handlePersonalSeleccionado(item);
-        }
-      }}
-      disabled={item.estado === 'inactivo'}
-      activeOpacity={0.7}
-    >
-      <View>
-        <Text style={[
-          styles.listItemText,
-          (personalPreseleccionado?.idpersonal === item.idpersonal || 
-           personalSeleccionado?.idpersonal === item.idpersonal) && styles.selectedText
-        ]}>
-          {item.nombre_completo}
-        </Text>
-        <Text style={styles.listItemSubText}>{item.tipo_persona}</Text>
-      </View>
-      <MaterialIcons 
-        name="person" 
-        size={24} 
-        color={
-          item.estado === 'inactivo' ? '#ced4da' :
-          (personalPreseleccionado?.idpersonal === item.idpersonal ||
-           personalSeleccionado?.idpersonal === item.idpersonal) ? '#4a6da7' : '#adb5bd'
-        } 
-      />
-    </TouchableOpacity>
-  );
-
   return (
     <SafeAreaView style={styles.safeArea}>
       <StatusBar barStyle="dark-content" backgroundColor="#f8f9fa" />
       
-      {/* Menú lateral con overlay - AHORA CON MenuAdmin */}
-      {menuVisible && (
-        <MenuAdmin 
-          navigation={navigation} 
-          onClose={() => setMenuVisible(false)} 
-        />
-      )}
-
       {/* Contenido principal */}
-      <View style={[
-        styles.container,
-        menuVisible && styles.contentWithMenuOpen
-      ]}>
+      <View style={styles.container}>
         {/* Header */}
         <View style={styles.header}>
           <TouchableOpacity 
-            onPress={() => setMenuVisible(true)} 
-            style={styles.menuButton} 
-            activeOpacity={0.7}
+            onPress={() => navigation.openDrawer()}
+            style={styles.menuButton}
+            hitSlop={{top: 20, bottom: 20, left: 20, right: 20}}
           >
-            <MaterialIcons name="menu" size={28} color="#4a6da7" />
+            <MaterialIcons name="menu" size={24} color="#2c3e50" />
           </TouchableOpacity>
           
           <Text style={styles.headerTitle}>Préstamos Directos</Text>
@@ -437,15 +388,29 @@ const PrestamosScreen = ({ navigation }) => {
             onPress={() => setScannerVisible(true)}
             style={styles.scanButton}
             disabled={loading}
-            activeOpacity={0.7}
           >
             <MaterialIcons 
               name="qr-code-scanner" 
-              size={28} 
+              size={24} 
               color={loading ? '#adb5bd' : '#4a6da7'} 
             />
           </TouchableOpacity>
         </View>
+
+        {/* Mensajes flotantes (web) */}
+        {isWeb && showSuccessMessage && (
+          <View style={styles.webSuccessMessage}>
+            <MaterialIcons name="check-circle" size={20} color="#10B981" />
+            <Text style={styles.webSuccessText}>{successMessage}</Text>
+          </View>
+        )}
+
+        {isWeb && showErrorMessage && (
+          <View style={styles.webErrorMessage}>
+            <MaterialIcons name="error" size={20} color="#EF4444" />
+            <Text style={styles.webErrorText}>{errorMessage}</Text>
+          </View>
+        )}
 
         {/* Listado de categorías */}
         <ScrollView contentContainerStyle={styles.listContainer}>
@@ -537,84 +502,6 @@ const PrestamosScreen = ({ navigation }) => {
           </View>
         </Modal>
 
-        {/* Modal para selección de personal */}
-        <Modal
-          animationType="slide"
-          transparent={false}
-          visible={modalPersonalVisible}
-          onRequestClose={() => {
-            setPersonalPreseleccionado(null);
-            setModalPersonalVisible(false);
-          }}
-        >
-          <View style={styles.modalContainer}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Asignar a persona</Text>
-              <Text style={styles.modalSubtitle}>Seleccione el beneficiario</Text>
-              {equipoSeleccionado && (
-                <Text style={styles.modalSubtitle}>Equipo: {equipoSeleccionado.nombreequipo}</Text>
-              )}
-            </View>
-            
-            <TextInput
-              style={styles.searchInput}
-              placeholder="Buscar personal..."
-              placeholderTextColor="#6c757d"
-              value={searchTerm}
-              onChangeText={setSearchTerm}
-            />
-            
-            {loading ? (
-              <View style={styles.loadingContainer}>
-                <ActivityIndicator size="large" color="#4a6da7" />
-                <Text style={styles.loadingText}>Cargando personal...</Text>
-              </View>
-            ) : filteredPersonal.length === 0 ? (
-              <View style={styles.emptyContainer}>
-                <MaterialIcons name="person-off" size={50} color="#6c757d" />
-                <Text style={styles.emptyText}>
-                  {searchTerm ? 'No se encontraron coincidencias' : 'No hay personal disponible'}
-                </Text>
-              </View>
-            ) : (
-              <>
-                <FlatList
-                  data={filteredPersonal}
-                  renderItem={renderPersonalItem}
-                  keyExtractor={(item) => item.idpersonal.toString()}
-                  contentContainerStyle={{ paddingBottom: 15 }}
-                />
-                <View style={styles.confirmationContainer}>
-                  <TouchableOpacity 
-                    style={[
-                      styles.confirmButton,
-                      !personalPreseleccionado && styles.buttonDisabled
-                    ]}
-                    onPress={() => personalPreseleccionado && handlePersonalSeleccionado(personalPreseleccionado)}
-                    disabled={!personalPreseleccionado}
-                    activeOpacity={0.7}
-                  >
-                    <Text style={styles.confirmButtonText}>
-                      {personalPreseleccionado ? `Confirmar ${personalPreseleccionado.nombre_completo}` : 'Seleccione una persona'}
-                    </Text>
-                  </TouchableOpacity>
-                </View>
-              </>
-            )}
-            
-            <TouchableOpacity 
-              style={styles.cancelButton}
-              onPress={() => {
-                setPersonalPreseleccionado(null);
-                setModalPersonalVisible(false);
-              }}
-              activeOpacity={0.7}
-            >
-              <Text style={styles.cancelButtonText}>Cancelar préstamo</Text>
-            </TouchableOpacity>
-          </View>
-        </Modal>
-
         {/* Modal para escanear QR */}
         <QRScannerModal
           visible={scannerVisible}
@@ -630,11 +517,26 @@ const PrestamosScreen = ({ navigation }) => {
           </View>
         )}
       </View>
+
+      {/* Alertas para móvil */}
+      {!isWeb && showSuccessMessage && (
+        <View style={styles.mobileSuccessMessage}>
+          <MaterialIcons name="check-circle" size={20} color="#10B981" />
+          <Text style={styles.mobileMessageText}>{successMessage}</Text>
+        </View>
+      )}
+
+      {!isWeb && showErrorMessage && (
+        <View style={styles.mobileErrorMessage}>
+          <MaterialIcons name="error" size={20} color="#EF4444" />
+          <Text style={styles.mobileMessageText}>{errorMessage}</Text>
+        </View>
+      )}
     </SafeAreaView>
   );
 };
 
-// Estilos
+// Estilos (se mantienen igual que en tu versión original)
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
@@ -643,10 +545,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#f8f9fa',
-  },
-  contentWithMenuOpen: {
-    opacity: 0.8,
-    transform: [{ scale: 0.95 }],
   },
   header: {
     flexDirection: 'row',
@@ -661,10 +559,9 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 3,
-    zIndex: 1,
   },
   menuButton: {
-    padding: 8,
+    marginRight: 16,
   },
   headerTitle: {
     fontSize: 20,
@@ -673,13 +570,6 @@ const styles = StyleSheet.create({
   },
   scanButton: {
     padding: 8,
-  },
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#4a6da7',
-    marginBottom: 10,
-    paddingHorizontal: 15,
   },
   listContainer: {
     padding: 15,
@@ -806,29 +696,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: 'bold',
   },
-  searchInput: {
-    height: 50,
-    borderColor: '#ced4da',
-    borderWidth: 1,
-    borderRadius: 8,
-    paddingHorizontal: 15,
-    marginBottom: 15,
-    fontSize: 16,
-    color: '#495057',
-    backgroundColor: 'white',
-  },
-  cancelButton: {
-    backgroundColor: '#e9ecef',
-    padding: 15,
-    borderRadius: 8,
-    alignItems: 'center',
-    marginVertical: 15,
-  },
-  cancelButtonText: {
-    color: '#495057',
-    fontSize: 16,
-    fontWeight: '500',
-  },
   confirmationContainer: {
     paddingVertical: 15,
     borderTopWidth: 1,
@@ -847,6 +714,18 @@ const styles = StyleSheet.create({
     color: 'white',
     fontWeight: 'bold',
     fontSize: 16,
+  },
+  cancelButton: {
+    backgroundColor: '#e9ecef',
+    padding: 15,
+    borderRadius: 8,
+    alignItems: 'center',
+    marginVertical: 15,
+  },
+  cancelButtonText: {
+    color: '#495057',
+    fontSize: 16,
+    fontWeight: '500',
   },
   emptyContainer: {
     flex: 1,
@@ -876,6 +755,93 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     zIndex: 10,
+  },
+  webSuccessMessage: {
+    position: 'fixed',
+    top: 20,
+    left: '50%',
+    transform: [{ translateX: -180 }],
+    width: 360,
+    backgroundColor: '#D1FAE5',
+    padding: 16,
+    borderRadius: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 5,
+    zIndex: 1000,
+  },
+  webSuccessText: {
+    color: '#065F46',
+    marginLeft: 10,
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  webErrorMessage: {
+    position: 'fixed',
+    top: 20,
+    left: '50%',
+    transform: [{ translateX: -180 }],
+    width: 360,
+    backgroundColor: '#FEE2E2',
+    padding: 16,
+    borderRadius: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 5,
+    zIndex: 1000,
+  },
+  webErrorText: {
+    color: '#B91C1C',
+    marginLeft: 10,
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  mobileSuccessMessage: {
+    position: 'absolute',
+    bottom: 20,
+    left: 20,
+    right: 20,
+    backgroundColor: '#D1FAE5',
+    padding: 16,
+    borderRadius: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 5,
+    zIndex: 1000,
+  },
+  mobileErrorMessage: {
+    position: 'absolute',
+    bottom: 20,
+    left: 20,
+    right: 20,
+    backgroundColor: '#FEE2E2',
+    padding: 16,
+    borderRadius: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 5,
+    zIndex: 1000,
+  },
+  mobileMessageText: {
+    marginLeft: 10,
+    fontSize: 14,
+    fontWeight: '500',
   },
 });
 

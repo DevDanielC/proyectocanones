@@ -34,9 +34,10 @@ const menuItems = [
     title: 'Gestión de Equipos',
     icon: 'inventory',
     subItems: [
-      { title: 'Préstamos', icon: 'assignment', route: 'Prestamos' },
+   //   { title: 'Préstamos', icon: 'assignment', route: 'Prestamos' },
       { title: 'Reporte de préstamos', icon: 'history', route: 'HistorialPrestamos' },
-      { title: 'Devoluciones', icon: 'keyboard-return', route: 'Devoluciones' }
+     // por si se necesita
+     //  { title: 'Devoluciones', icon: 'keyboard-return', route: 'Devoluciones' }
     ]
   },
   {

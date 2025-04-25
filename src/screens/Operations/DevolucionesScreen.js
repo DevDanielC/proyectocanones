@@ -3,7 +3,6 @@ import {
   View,
   Text,
   StyleSheet,
-  ScrollView,
   TouchableOpacity,
   ActivityIndicator,
   Dimensions,
@@ -11,17 +10,21 @@ import {
   TextInput,
   Modal,
   FlatList,
-  RefreshControl
+  RefreshControl,
+  ScrollView,
+  StatusBar,
+  Alert
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
+import { MaterialIcons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { supabase } from '../../lib/supabase';
 import Toast from 'react-native-toast-message';
+import MenuUsuario from '../../components/MenuUsuario';
 
 const { width } = Dimensions.get('window');
 const isMobile = width < 768;
-const MAX_CONTENT_WIDTH = 1200;
 
 const DevolucionesScreen = () => {
   const navigation = useNavigation();
@@ -32,9 +35,15 @@ const DevolucionesScreen = () => {
   const [modalVisible, setModalVisible] = useState(false);
   const [observaciones, setObservaciones] = useState('');
   const [currentPrestamo, setCurrentPrestamo] = useState(null);
+  const [personal, setPersonal] = useState([]);
+  const [personalModalVisible, setPersonalModalVisible] = useState(false);
+  const [validationError, setValidationError] = useState('');
+  const [menuVisible, setMenuVisible] = useState(false);
+  const [personalPreseleccionado, setPersonalPreseleccionado] = useState(null);
 
   useEffect(() => {
     fetchPrestamosActivos();
+    fetchPersonalActivo();
   }, []);
 
   const fetchPrestamosActivos = async () => {
@@ -48,11 +57,13 @@ const DevolucionesScreen = () => {
           idprestamo,
           idequipo,
           idusuario,
+          idpersonal,
           fechaprestamo,
           horaprestamo,
           estado,
           equipos:equipos(nombreequipo),
-          usuarios:usuarios(nombreusuario)
+          usuarios:usuarios(nombreusuario),
+          personal:personal(nombre_completo)
         `)
         .or('estado.eq.Prestado,estado.eq.Reservado')
         .order('fechaprestamo', { ascending: false });
@@ -60,16 +71,14 @@ const DevolucionesScreen = () => {
       if (error) throw error;
 
       const prestamosFormateados = data?.map(item => ({
-        idprestamo: item.idprestamo,
-        idequipo: item.idequipo,
-        idusuario: item.idusuario,
+        ...item,
         nombreequipo: item.equipos?.nombreequipo || 'Equipo no encontrado',
         nombreusuario: item.usuarios?.nombreusuario || 'Usuario no encontrado',
+        nombrepersonal: item.personal?.nombre_completo || 'Personal no registrado',
         fechaprestamo: item.fechaprestamo 
           ? new Date(item.fechaprestamo).toLocaleDateString() 
           : 'Sin fecha',
-        horaprestamo: item.horaprestamo || 'Sin hora',
-        estado: item.estado
+        horaprestamo: item.horaprestamo || 'Sin hora'
       })) || [];
 
       setPrestamos(prestamosFormateados);
@@ -87,6 +96,26 @@ const DevolucionesScreen = () => {
     }
   };
 
+  const fetchPersonalActivo = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('personal')
+        .select('idpersonal, nombre_completo, tipo_persona, estado')
+        .eq('estado', 'activo')
+        .order('nombre_completo', { ascending: true });
+
+      if (error) throw error;
+      setPersonal(data || []);
+    } catch (error) {
+      console.error('Error al cargar personal:', error);
+      Toast.show({
+        type: 'error',
+        text1: 'Error',
+        text2: 'No se pudo cargar la lista de personal',
+      });
+    }
+  };
+
   const handleRefresh = () => {
     setRefreshing(true);
     fetchPrestamosActivos();
@@ -94,6 +123,32 @@ const DevolucionesScreen = () => {
 
   const handleDevolucion = (prestamo) => {
     setCurrentPrestamo(prestamo);
+    setValidationError('');
+    setPersonalPreseleccionado(null);
+    setPersonalModalVisible(true);
+  };
+
+  const seleccionarPersonal = (personaSeleccionada) => {
+    if (currentPrestamo.idpersonal !== personaSeleccionada.idpersonal) {
+      setValidationError('Solo el personal que realizó el préstamo puede registrar la devolución');
+      return;
+    }
+    
+    setPersonalPreseleccionado(personaSeleccionada);
+  };
+
+  const confirmarPersonal = () => {
+    if (!personalPreseleccionado) {
+      setValidationError('Debe seleccionar una persona');
+      return;
+    }
+    
+    if (currentPrestamo.idpersonal !== personalPreseleccionado.idpersonal) {
+      setValidationError('Solo el personal que realizó el préstamo puede registrar la devolución');
+      return;
+    }
+    
+    setPersonalModalVisible(false);
     setModalVisible(true);
   };
 
@@ -109,11 +164,11 @@ const DevolucionesScreen = () => {
         second: '2-digit'
       });
 
-      // 1. Registrar en tabla devoluciones
       const { error: devolucionError } = await supabase
         .from('devoluciones')
         .insert({
           idprestamo,
+          idpersonal: personalPreseleccionado.idpersonal,
           fechadevolucion: fechaActual.toISOString(),
           horadevolucion: horaActual,
           observaciones: observaciones || 'Devolución sin observaciones'
@@ -121,20 +176,6 @@ const DevolucionesScreen = () => {
 
       if (devolucionError) throw devolucionError;
 
-      // 2. Registrar en historial_prestamos
-      const { error: historialError } = await supabase
-        .from('historial_prestamos')
-        .insert({
-          idprestamo,
-          idusuario,
-          accion: 'Devolución',
-          fechaaccion: fechaActual.toISOString(),
-          detalles: observaciones || 'Devolución registrada'
-        });
-
-      if (historialError) throw historialError;
-
-      // 3. Actualizar estado del préstamo
       const { error: prestamoError } = await supabase
         .from('prestamos')
         .update({ estado: 'Devuelto' })
@@ -142,7 +183,6 @@ const DevolucionesScreen = () => {
 
       if (prestamoError) throw prestamoError;
 
-      // 4. Actualizar estado del equipo
       const { error: equipoError } = await supabase
         .from('equipos')
         .update({ estado: 'disponible' })
@@ -150,23 +190,18 @@ const DevolucionesScreen = () => {
 
       if (equipoError) throw equipoError;
 
-      // Mostrar notificación de éxito
       Toast.show({
         type: 'success',
         text1: 'Devolución registrada',
-        text2: 'El equipo está disponible nuevamente',
-        visibilityTime: 3000,
+        text2: 'El equipo ha sido devuelto correctamente',
       });
 
-      // Cerrar modal y limpiar
       setModalVisible(false);
       setObservaciones('');
       setCurrentPrestamo(null);
+      setPersonalPreseleccionado(null);
 
-      // Actualizar la lista
-      setTimeout(() => {
-        fetchPrestamosActivos();
-      }, 500);
+      fetchPrestamosActivos();
 
     } catch (error) {
       console.error('Error en devolución:', error);
@@ -174,12 +209,44 @@ const DevolucionesScreen = () => {
         type: 'error',
         text1: 'Error en devolución',
         text2: error.message || 'No se pudo completar la devolución',
-        visibilityTime: 4000,
       });
     } finally {
       setLoading(false);
     }
   };
+
+  const renderItemPersonal = ({ item }) => (
+    <TouchableOpacity
+      style={[
+        styles.listItem,
+        personalPreseleccionado?.idpersonal === item.idpersonal && styles.itemPreselected,
+        currentPrestamo?.idpersonal === item.idpersonal && styles.itemSelected
+      ]}
+      onPress={() => seleccionarPersonal(item)}
+    >
+      <View>
+        <Text style={[
+          styles.listItemText,
+          (personalPreseleccionado?.idpersonal === item.idpersonal || 
+           currentPrestamo?.idpersonal === item.idpersonal) && styles.selectedText
+        ]}>
+          {item.nombre_completo}
+        </Text>
+        <Text style={styles.listItemSubText}>{item.tipo_persona}</Text>
+        {currentPrestamo?.idpersonal === item.idpersonal && (
+          <Text style={styles.prestamoOwner}>(Realizó el préstamo)</Text>
+        )}
+      </View>
+      <MaterialIcons 
+        name="person" 
+        size={24} 
+        color={
+          personalPreseleccionado?.idpersonal === item.idpersonal ||
+          currentPrestamo?.idpersonal === item.idpersonal ? '#4a6da7' : '#adb5bd'
+        } 
+      />
+    </TouchableOpacity>
+  );
 
   const renderPrestamo = ({ item }) => (
     <View style={styles.card}>
@@ -204,6 +271,11 @@ const DevolucionesScreen = () => {
         <View style={styles.infoRow}>
           <Icon name="person" size={20} color="#6c757d" />
           <Text style={styles.infoText}>{item.nombreusuario}</Text>
+        </View>
+
+        <View style={styles.infoRow}>
+          <MaterialCommunityIcons name="account-hard-hat" size={20} color="#6c757d" />
+          <Text style={styles.infoText}>{item.nombrepersonal}</Text>
         </View>
 
         <View style={styles.infoRow}>
@@ -238,17 +310,33 @@ const DevolucionesScreen = () => {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <View style={styles.container}>
+      <StatusBar barStyle="dark-content" backgroundColor="#f8f9fa" />
+      
+      {/* Menú lateral */}
+      {menuVisible && (
+        <MenuUsuario 
+          navigation={navigation} 
+          onClose={() => setMenuVisible(false)} 
+        />
+      )}
+
+      {/* Contenido principal */}
+      <View style={[
+        styles.container,
+        menuVisible && styles.contentWithMenuOpen
+      ]}>
         {/* Header */}
         <View style={styles.header}>
           <TouchableOpacity 
-            onPress={() => navigation.openDrawer()}
+            onPress={() => setMenuVisible(true)}
             style={styles.menuButton}
-            hitSlop={{top: 20, bottom: 20, left: 20, right: 20}}
           >
-            <Icon name="menu" size={24} color="#2c3e50" />
+            <MaterialIcons name="menu" size={28} color="#4a6da7" />
           </TouchableOpacity>
+          
           <Text style={styles.headerTitle}>Devoluciones</Text>
+          
+          <View style={{ width: 28 }} /> {/* Espacio para alinear */}
         </View>
 
         {/* Search Bar */}
@@ -263,11 +351,12 @@ const DevolucionesScreen = () => {
           />
         </View>
 
-        {/* Content */}
+        {/* Lista de préstamos */}
         <FlatList
           data={prestamos.filter(item => 
             item.nombreequipo.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            item.nombreusuario.toLowerCase().includes(searchQuery.toLowerCase())
+            item.nombreusuario.toLowerCase().includes(searchQuery.toLowerCase()) ||
+            item.nombrepersonal.toLowerCase().includes(searchQuery.toLowerCase())
           )}
           renderItem={renderPrestamo}
           keyExtractor={item => item.idprestamo.toString()}
@@ -299,68 +388,134 @@ const DevolucionesScreen = () => {
           }
         />
 
+        {/* Modal para seleccionar personal */}
+        <Modal
+          animationType="slide"
+          transparent={false}
+          visible={personalModalVisible}
+          onRequestClose={() => {
+            setPersonalModalVisible(false);
+            setPersonalPreseleccionado(null);
+          }}
+        >
+          <View style={styles.modalContainer}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Seleccionar personal</Text>
+              <Text style={styles.modalSubtitle}>
+                Equipo: {currentPrestamo?.nombreequipo || 'N/A'}
+              </Text>
+              {validationError && (
+                <Text style={styles.errorText}>{validationError}</Text>
+              )}
+            </View>
+            
+            <FlatList
+              data={personal}
+              renderItem={renderItemPersonal}
+              keyExtractor={item => item.idpersonal.toString()}
+              contentContainerStyle={{ paddingBottom: 15 }}
+            />
+            
+            <View style={styles.confirmationContainer}>
+              <TouchableOpacity 
+                style={[
+                  styles.confirmButton,
+                  !personalPreseleccionado && styles.buttonDisabled
+                ]}
+                onPress={confirmarPersonal}
+                disabled={!personalPreseleccionado}
+              >
+                <Text style={styles.confirmButtonText}>
+                  {personalPreseleccionado ? `Confirmar ${personalPreseleccionado.nombre_completo}` : 'Seleccione una persona'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+            
+            <TouchableOpacity 
+              style={styles.cancelButton}
+              onPress={() => {
+                setPersonalModalVisible(false);
+                setPersonalPreseleccionado(null);
+              }}
+            >
+              <Text style={styles.cancelButtonText}>Cancelar</Text>
+            </TouchableOpacity>
+          </View>
+        </Modal>
+
         {/* Modal para observaciones */}
         <Modal
           animationType="slide"
-          transparent={true}
+          transparent={false}
           visible={modalVisible}
           onRequestClose={() => {
             setModalVisible(false);
             setObservaciones('');
           }}
         >
-          <View style={styles.modalOverlay}>
-            <View style={styles.modalContainer}>
-              <Text style={styles.modalTitle}>Registrar Devolución</Text>
+          <View style={styles.modalContainer}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Confirmar Devolución</Text>
               
-              <Text style={styles.modalText}>
+              <Text style={styles.modalSubtitle}>
                 Equipo: {currentPrestamo?.nombreequipo || 'N/A'}
               </Text>
               
-              <Text style={styles.modalLabel}>Observaciones:</Text>
-              <TextInput
-                style={styles.modalInput}
-                multiline
-                numberOfLines={4}
-                placeholder="Ingrese observaciones sobre la devolución..."
-                value={observaciones}
-                onChangeText={setObservaciones}
-              />
+              <Text style={styles.modalSubtitle}>
+                Personal: {personalPreseleccionado?.nombre_completo || 'N/A'}
+              </Text>
+            </View>
+            
+            <Text style={styles.modalLabel}>Observaciones:</Text>
+            <TextInput
+              style={styles.modalInput}
+              multiline
+              numberOfLines={4}
+              placeholder="Ingrese observaciones sobre la devolución..."
+              value={observaciones}
+              onChangeText={setObservaciones}
+            />
+            
+            <View style={styles.modalButtons}>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.cancelButton]}
+                onPress={() => {
+                  setModalVisible(false);
+                  setObservaciones('');
+                }}
+                disabled={loading}
+              >
+                <Text style={styles.modalButtonText}>Cancelar</Text>
+              </TouchableOpacity>
               
-              <View style={styles.modalButtons}>
-                <TouchableOpacity
-                  style={[styles.modalButton, styles.cancelButton]}
-                  onPress={() => {
-                    setModalVisible(false);
-                    setObservaciones('');
-                  }}
-                  disabled={loading}
-                >
-                  <Text style={styles.modalButtonText}>Cancelar</Text>
-                </TouchableOpacity>
-                
-                <TouchableOpacity
-                  style={[styles.modalButton, styles.confirmButton]}
-                  onPress={confirmarDevolucion}
-                  disabled={loading}
-                >
-                  {loading ? (
-                    <ActivityIndicator color="white" />
-                  ) : (
-                    <Text style={styles.modalButtonText}>Confirmar</Text>
-                  )}
-                </TouchableOpacity>
-              </View>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.confirmButton]}
+                onPress={confirmarDevolucion}
+                disabled={loading}
+              >
+                {loading ? (
+                  <ActivityIndicator color="white" />
+                ) : (
+                  <Text style={styles.modalButtonText}>Confirmar</Text>
+                )}
+              </TouchableOpacity>
             </View>
           </View>
         </Modal>
+
+        {/* Overlay de carga */}
+        {loading && (
+          <View style={styles.loadingOverlay}>
+            <ActivityIndicator size="large" color="#4a6da7" />
+            <Text style={styles.loadingText}>Procesando...</Text>
+          </View>
+        )}
       </View>
       <Toast />
     </SafeAreaView>
   );
 };
 
-// Los estilos permanecen iguales
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
@@ -370,23 +525,17 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#f8f9fa',
   },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#f8f9fa',
-  },
-  loadingText: {
-    marginTop: 16,
-    fontSize: 16,
-    color: '#6c757d',
+  contentWithMenuOpen: {
+    opacity: 0.8,
+    transform: [{ scale: 0.95 }],
   },
   header: {
     flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
     backgroundColor: '#ffffff',
     paddingVertical: 16,
-    paddingHorizontal: isMobile ? 16 : 24,
+    paddingHorizontal: 16,
     borderBottomWidth: 1,
     borderBottomColor: '#e0e0e0',
     shadowColor: '#000',
@@ -396,10 +545,10 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   menuButton: {
-    marginRight: 16,
+    padding: 4,
   },
   headerTitle: {
-    fontSize: isMobile ? 18 : 20,
+    fontSize: 20,
     fontWeight: '600',
     color: '#2c3e50',
   },
@@ -522,35 +671,27 @@ const styles = StyleSheet.create({
     color: '#4a6da7',
     fontWeight: '500',
   },
-  modalOverlay: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: 'rgba(0,0,0,0.5)',
-  },
   modalContainer: {
-    width: isMobile ? '90%' : '70%',
-    maxWidth: 500,
-    backgroundColor: '#ffffff',
-    borderRadius: 12,
-    padding: 24,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 20,
-    elevation: 5,
+    flex: 1,
+    backgroundColor: 'white',
+    paddingHorizontal: 15,
+    paddingTop: 20,
+  },
+  modalHeader: {
+    marginBottom: 20,
+    paddingBottom: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e9ecef',
   },
   modalTitle: {
-    fontSize: 20,
+    fontSize: 22,
     fontWeight: '600',
-    color: '#2c3e50',
-    marginBottom: 20,
-    textAlign: 'center',
+    color: '#343a40',
   },
-  modalText: {
+  modalSubtitle: {
     fontSize: 16,
-    color: '#2c3e50',
-    marginBottom: 12,
+    color: '#6c757d',
+    marginTop: 5,
   },
   modalLabel: {
     fontSize: 14,
@@ -591,6 +732,99 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     fontWeight: '500',
     fontSize: 16,
+  },
+  listItem: {
+    padding: 15,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e9ecef',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: 'white',
+  },
+  itemSelected: {
+    backgroundColor: '#f0f7ff',
+    borderLeftWidth: 4,
+    borderLeftColor: '#4a6da7',
+  },
+  itemPreselected: {
+    backgroundColor: '#e6f3ff',
+    borderLeftWidth: 4,
+    borderLeftColor: '#8ab6f9',
+  },
+  listItemText: {
+    fontSize: 16,
+    color: '#495057',
+    fontWeight: '500',
+  },
+  selectedText: {
+    fontWeight: 'bold',
+    color: '#2c5282',
+  },
+  listItemSubText: {
+    fontSize: 14,
+    color: '#6c757d',
+    marginTop: 3,
+  },
+  prestamoOwner: {
+    fontSize: 12,
+    color: '#4a6da7',
+    fontStyle: 'italic',
+    marginTop: 4,
+  },
+  confirmationContainer: {
+    paddingVertical: 15,
+    borderTopWidth: 1,
+    borderTopColor: '#e2e8f0',
+  },
+  confirmButton: {
+    backgroundColor: '#4299e1',
+    padding: 15,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  buttonDisabled: {
+    backgroundColor: '#a0aec0',
+  },
+  confirmButtonText: {
+    color: 'white',
+    fontWeight: 'bold',
+    fontSize: 16,
+  },
+  cancelButton: {
+    backgroundColor: '#e9ecef',
+    padding: 15,
+    borderRadius: 8,
+    alignItems: 'center',
+    marginVertical: 15,
+  },
+  cancelButtonText: {
+    color: '#495057',
+    fontSize: 16,
+    fontWeight: '500',
+  },
+  errorText: {
+    color: '#dc3545',
+    marginTop: 5,
+    textAlign: 'center',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#f8f9fa',
+  },
+  loadingText: {
+    marginTop: 16,
+    fontSize: 16,
+    color: '#6c757d',
+  },
+  loadingOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 10,
   },
 });
 
