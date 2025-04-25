@@ -4,7 +4,7 @@
     "slug": "MiApp",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/logo.png",
+    "icon": "./assets/logoUTR.png",
     "userInterfaceStyle": "light",
     "splash": {
       "image": "./assets/logo.png",
