@@ -12,12 +12,16 @@ import {
   ScrollView,
   SafeAreaView,
   StatusBar,
-  Platform
+  Platform,
+  Dimensions,
+  Animated
 } from 'react-native';
 import { MaterialIcons, FontAwesome } from '@expo/vector-icons';
 import { supabase } from '../lib/supabase';
 import MenuUsuario from '../components/MenuUsuario';
 import QRScannerModal from '../components/QRScannerModal';
+
+const { width } = Dimensions.get('window');
 
 const SolicitarPrestamoUsuario = ({ navigation }) => {
   // Estados para datos y carga
@@ -39,6 +43,24 @@ const SolicitarPrestamoUsuario = ({ navigation }) => {
   const [personalSeleccionado, setPersonalSeleccionado] = useState(null);
   const [equipoPreseleccionado, setEquipoPreseleccionado] = useState(null);
   const [personalPreseleccionado, setPersonalPreseleccionado] = useState(null);
+
+  // Animación para el efecto del menú
+  const scaleValue = new Animated.Value(1);
+
+  // Efecto para animar cuando el menú se abre/cierra
+  useEffect(() => {
+    if (menuVisible) {
+      Animated.spring(scaleValue, {
+        toValue: 0.95,
+        useNativeDriver: true,
+      }).start();
+    } else {
+      Animated.spring(scaleValue, {
+        toValue: 1,
+        useNativeDriver: true,
+      }).start();
+    }
+  }, [menuVisible]);
 
   // Cargar datos iniciales
   useEffect(() => {
@@ -416,10 +438,10 @@ const SolicitarPrestamoUsuario = ({ navigation }) => {
         />
       )}
 
-      {/* Contenido principal */}
-      <View style={[
+      {/* Contenido principal con animación */}
+      <Animated.View style={[
         styles.container,
-        menuVisible && styles.contentWithMenuOpen
+        { transform: [{ scale: scaleValue }] }
       ]}>
         {/* Header */}
         <View style={styles.header}>
@@ -448,7 +470,10 @@ const SolicitarPrestamoUsuario = ({ navigation }) => {
         </View>
 
         {/* Listado de categorías */}
-        <ScrollView contentContainerStyle={styles.listContainer}>
+        <ScrollView 
+          contentContainerStyle={styles.listContainer}
+          showsVerticalScrollIndicator={false}
+        >
           {loading && categorias.length === 0 ? (
             <View style={styles.loadingContainer}>
               <ActivityIndicator size="large" color="#4a6da7" />
@@ -629,12 +654,11 @@ const SolicitarPrestamoUsuario = ({ navigation }) => {
             <Text style={styles.loadingText}>Procesando...</Text>
           </View>
         )}
-      </View>
+      </Animated.View>
     </SafeAreaView>
   );
 };
 
-// Estilos
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
@@ -643,10 +667,12 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#f8f9fa',
-  },
-  contentWithMenuOpen: {
-    opacity: 0.8,
-    transform: [{ scale: 0.95 }],
+    maxWidth: 500,
+    width: '100%',
+    marginHorizontal: Platform.select({
+      web: 'auto',
+      default: undefined
+    }),
   },
   header: {
     flexDirection: 'row',
@@ -695,6 +721,8 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 2,
+    width: width - 30,
+    marginHorizontal: 15,
   },
   cardHeader: {
     flexDirection: 'row',

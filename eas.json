@@ -7,30 +7,19 @@
       "developmentClient": true,
       "distribution": "internal",
       "android": {
-        "buildType": "apk"
-      },
-      "ios": {
-        "simulator": true
+        "buildType": "apk"  
       }
     },
     "preview": {
       "distribution": "internal",
       "android": {
         "buildType": "apk"
-      },
-      "ios": {
-        "buildConfiguration": "Debug"
       }
     },
     "production": {
       "android": {
         "buildType": "apk",
         "image": "ubuntu-22.04-jdk-17-ndk-r25b"
-      },
-      "ios": {
-        "buildConfiguration": "Release",
-        "enterpriseProvisioning": "universal",
-        "autoIncrement": "version"
       }
     }
   }
