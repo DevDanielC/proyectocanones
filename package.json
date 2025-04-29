@@ -22,8 +22,8 @@
     }
   },
  "scripts": {
-     "predeploy": "npm run build",
-     "deploy": "gh-pages -d build",
+     "predeploy": "expo export --output-dir web-build",
+     "deploy": "gh-pages -d web-build",
      "start": "expo start",
      "android": "expo run:android",
      "ios": "expo run:ios",
