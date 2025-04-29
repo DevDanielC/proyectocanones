@@ -75,15 +75,18 @@ const ModificarUsuariosScreen = ({ navigation }) => {
         .from('personal')
         .select('*')
         .order('created_at', { ascending: false });
-
+  
+      // Opcional: Filtrar solo activos si lo deseas
+       query = query.eq('estado', 'activo');
+      
       if (searchQuery) {
         query = query.ilike('nombre_completo', `%${searchQuery}%`);
       }
-
+  
       const { data, error } = await query;
-
+  
       if (error) throw error;
-
+  
       setPersonalList(data || []);
     } catch (error) {
       showAlert('Error', 'No se pudo cargar la lista de personal');
@@ -151,18 +154,25 @@ const ModificarUsuariosScreen = ({ navigation }) => {
   };
 
   const handleEliminarPersonal = async () => {
+    if (!selectedPersonal) return;
+  
+    // No permitir si ya está inactivo
+    if (selectedPersonal.estado === 'inactivo') {
+      showAlert('Información', 'Este personal ya está inactivo');
+      return;
+    }
+  
+    const confirmationMessage = `¿Estás seguro de marcar como INACTIVO a ${selectedPersonal.nombre_completo}?`;
+  
     if (isWeb) {
-      const confirm = window.confirm(
-        `¿Estás seguro de que deseas eliminar a ${selectedPersonal.nombre_completo}? Esta acción no se puede deshacer.`
-      );
-      if (!confirm) return;
+      if (!window.confirm(confirmationMessage)) return;
     } else {
       Alert.alert(
-        'Confirmar eliminación',
-        `¿Estás seguro de que deseas eliminar a ${selectedPersonal.nombre_completo}? Esta acción no se puede deshacer.`,
+        'Confirmar cambio de estado',
+        confirmationMessage,
         [
           { text: 'Cancelar', style: 'cancel' },
-          { text: 'Eliminar', onPress: actuallyDeletePersonal, style: 'destructive' }
+          { text: 'Marcar como Inactivo', onPress: actuallyDeletePersonal }
         ]
       );
       return;
@@ -174,23 +184,29 @@ const ModificarUsuariosScreen = ({ navigation }) => {
   const actuallyDeletePersonal = async () => {
     setLoading(true);
     try {
+      // Cambiamos de delete() a update() para cambiar el estado
       const { error } = await supabase
         .from('personal')
-        .delete()
+        .update({ 
+          estado: 'inactivo',
+          // Opcional: puedes agregar campos adicionales como:
+          // updated_at: new Date().toISOString()
+        })
         .eq('idpersonal', personalId);
   
       if (error) throw error;
-
-      setSuccessMessage('Personal eliminado correctamente');
+  
+      setSuccessMessage('Personal marcado como inactivo correctamente');
       setShowSuccessMessage(true);
       
       setTimeout(() => {
         setShowSuccessMessage(false);
         setSelectedPersonal(null);
-        fetchPersonal();
+        fetchPersonal(); // Refrescar la lista
       }, 2000);
     } catch (error) {
-      showAlert('Error', 'Ocurrió un error al eliminar el personal');
+      showAlert('Error', 'No se pudo marcar como inactivo: ' + error.message);
+      console.error('Error al marcar como inactivo:', error);
     } finally {
       setLoading(false);
     }

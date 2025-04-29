@@ -3,8 +3,23 @@
   "version": "1.0.0",
   "homepage": "https://devdanielc.github.io/proyectocanones",
   "main": "index.js",
-  "extra": {
-    "newArchEnabled": true
+  "expo": {
+    "extra": {
+      "newArchEnabled": true
+    },
+    "doctor": {
+      "reactNativeDirectoryCheck": {
+        "exclude": [
+          "react-native-camera",
+          "expo-barcode-scanner",
+          "base64-arraybuffer",
+          "expo-module-scripts",
+          "react-native-vector-icons",
+          "uuid"
+        ],
+        "listUnknownPackages": false
+      }
+    }
   },
   "scripts": {
     "predeploy": "expo export --output-dir web-build",
@@ -39,7 +54,6 @@
     "react": "18.3.1",
     "react-dom": "18.3.1",
     "react-native": "^0.76.9",
-    "react-native-camera": "^4.2.1",
     "react-native-gesture-handler": "~2.20.2",
     "react-native-get-random-values": "^1.11.0",
     "react-native-paper": "^5.13.1",
@@ -49,6 +63,7 @@
     "react-native-screens": "~4.4.0",
     "react-native-toast-message": "^2.2.1",
     "react-native-vector-icons": "^10.2.0",
+    "react-native-vision-camera": "^4.6.4",
     "react-native-web": "~0.19.13",
     "uuid": "^11.1.0"
   },

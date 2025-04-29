@@ -14,7 +14,9 @@
     "updates": {
       "fallbackToCacheTimeout": 0
     },
-    "assetBundlePatterns": ["**/*"],
+    "assetBundlePatterns": [
+      "**/*"
+    ],
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.anonymous.MiApp",
@@ -69,28 +71,22 @@
         "projectId": "08f593e1-809e-4776-bab1-f132f1d42896"
       }
     },
-    "plugins": [
-      [
-        "expo-camera",
-        {
-          "cameraPermission": "Necesitamos acceso a la cámara para escanear códigos QR de equipos",
-          "microphonePermission": false
-        }
-      ],
-      [
-        "expo-barcode-scanner",
-        {
-          "cameraPermission": "Permiso para escanear códigos de barras y QR"
-        }
-      ],
-      [
-        "expo-image-picker",
-        {
-          "photosPermission": "La app necesita acceso a tus fotos para subir imágenes",
-          "cameraPermission": "Permiso para tomar fotos con la cámara"
-        }
-      ]
-    ],
+  "plugins": [
+  [
+    "expo-camera",
+    {
+      "cameraPermission": "...",
+      "enableCamera2": false  
+    }
+  ],
+  [
+    "react-native-vision-camera",
+    {
+      "enableFrameProcessors": false,
+      "enableCodeScanner": false
+    }
+  ]
+],
     "runtimeVersion": {
       "policy": "sdkVersion"
     },

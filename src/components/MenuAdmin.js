@@ -76,14 +76,7 @@ const menuItems = [
       { title: 'Ver categorías', icon: 'visibility', route: 'VerCategorias' }
     ]
   },
-  {
-    title: 'Extras',
-    icon: 'extension',
-    subItems: [
-      { title: 'Sanciones', icon: 'warning', route: 'Sanciones' },
-      { title: 'Manual Administrador', icon: 'menu-book', route: 'Manual' }
-    ]
-  }
+
 ];
 
 const MenuAdmin = ({ navigation }) => {
