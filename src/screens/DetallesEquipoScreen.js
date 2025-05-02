@@ -8,7 +8,9 @@ import {
   ScrollView, 
   SafeAreaView,
   Alert,
-  Dimensions
+  Dimensions,
+  Modal,
+  FlatList
 } from 'react-native';
 import { supabase } from '../lib/supabase';
 import { useRoute, useNavigation } from '@react-navigation/native';
@@ -24,6 +26,9 @@ const DetallesEquipoScreen = () => {
   const [loading, setLoading] = useState(true);
   const [procesando, setProcesando] = useState(false);
   const [prestamoActivo, setPrestamoActivo] = useState(null);
+  const [personalDisponible, setPersonalDisponible] = useState([]);
+  const [modalPersonalVisible, setModalPersonalVisible] = useState(false);
+  const [personalSeleccionado, setPersonalSeleccionado] = useState(null);
   
   // Extracción segura de parámetros con valores por defecto
   const { equipoId, equipo: equipoFromParams } = route.params || {};
@@ -70,7 +75,7 @@ const DetallesEquipoScreen = () => {
             idprestamo,
             fechaprestamo,
             fechadevolucion_prevista,
-            personal: idpersonal (nombre_completo)
+            personal: idpersonal (idpersonal, nombre_completo, tipo_persona)
           `)
           .eq('idequipo', equipoFromParams?.idequipo || equipoId)
           .eq('estado', 'Prestado')
@@ -78,7 +83,20 @@ const DetallesEquipoScreen = () => {
 
         if (!prestamoError && prestamoData) {
           setPrestamoActivo(prestamoData);
+          setPersonalSeleccionado(prestamoData.personal);
         }
+
+        // Cargar personal disponible
+        const { data: personalData, error: personalError } = await supabase
+          .from('personal')
+          .select('idpersonal, nombre_completo, tipo_persona, estado')
+          .eq('estado', 'activo')
+          .order('nombre_completo', { ascending: true });
+
+        if (!personalError) {
+          setPersonalDisponible(personalData || []);
+        }
+
       } catch (error) {
         console.error('Error al cargar datos:', error);
         Alert.alert(
@@ -94,61 +112,148 @@ const DetallesEquipoScreen = () => {
     cargarDatos();
   }, [equipoId, equipoFromParams]);
 
-  const handlePrestamoDevolucion = async () => {
-    if (!equipo) return;
+  const handlePrestamoPress = () => {
+    if (equipo.estado === 'disponible') {
+      setModalPersonalVisible(true);
+    } else if (equipo.estado === 'prestado') {
+      confirmarDevolucion();
+    }
+  };
+
+  const handlePersonalSeleccionado = (persona) => {
+    setPersonalSeleccionado(persona);
+    setModalPersonalVisible(false);
+    confirmarPrestamo(persona);
+  };
+
+  const confirmarPrestamo = (persona) => {
+    Alert.alert(
+      'Confirmar préstamo',
+      `¿Desea registrar el préstamo del equipo ${equipo.nombreequipo} a ${persona.nombre_completo}?`,
+      [
+        { 
+          text: 'Cancelar', 
+          style: 'cancel',
+          onPress: () => setModalPersonalVisible(true)
+        },
+        { 
+          text: 'Confirmar', 
+          onPress: () => registrarPrestamo(persona) 
+        }
+      ]
+    );
+  };
+
+  const registrarPrestamo = async (persona) => {
+    if (!equipo || !persona) return;
     
     setProcesando(true);
     
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      
-      if (!user) {
-        throw new Error('Usuario no autenticado');
-      }
-
-      if (equipo.estado === 'disponible') {
-        // Lógica para prestar el equipo
-        const { error } = await supabase.rpc('realizar_prestamo', {
-          p_id_usuario: user.id,
-          p_id_equipo: equipo.idequipo,
-          p_nombre_equipo: equipo.nombreequipo
+      const { error } = await supabase
+        .from('prestamos')
+        .insert({
+          idpersonal: persona.idpersonal,
+          idequipo: equipo.idequipo,
+          estado: 'Prestado',
+          fechaprestamo: new Date().toISOString(),
+          fechadevolucion_prevista: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
         });
 
-        if (error) throw error;
+      if (error) throw error;
 
-        Alert.alert(
-          'Préstamo registrado',
-          `El préstamo del equipo ${equipo.nombreequipo} ha sido registrado correctamente.`,
-          [{ text: 'Aceptar', onPress: () => navigation.goBack() }]
-        );
-      } else if (equipo.estado === 'prestado') {
-        // Lógica para devolver el equipo
-        if (!prestamoActivo) {
-          throw new Error('No se encontró información del préstamo activo');
-        }
+      // Actualizar estado del equipo
+      const { error: errorEquipo } = await supabase
+        .from('equipos')
+        .update({ 
+          estado: 'prestado',
+          fechaactualizacion: new Date().toISOString() 
+        })
+        .eq('idequipo', equipo.idequipo);
 
-        const { error } = await supabase.rpc('registrar_devolucion_app', {
-          p_idprestamo: prestamoActivo.idprestamo
-        });
+      if (errorEquipo) throw errorEquipo;
 
-        if (error) throw error;
-
-        Alert.alert(
-          'Devolución registrada',
-          `El equipo ${equipo.nombreequipo} ha sido devuelto correctamente.`,
-          [{ text: 'Aceptar', onPress: () => navigation.goBack() }]
-        );
-      }
+      Alert.alert(
+        'Préstamo registrado',
+        `El préstamo del equipo ${equipo.nombreequipo} a ${persona.nombre_completo} ha sido registrado correctamente.`,
+        [{ text: 'Aceptar', onPress: () => navigation.goBack() }]
+      );
     } catch (error) {
-      console.error('Error al procesar:', error);
+      console.error('Error al registrar préstamo:', error);
       Alert.alert(
         'Error', 
-        error.message || 'No se pudo completar la operación'
+        error.message || 'No se pudo registrar el préstamo'
       );
     } finally {
       setProcesando(false);
     }
   };
+
+  const confirmarDevolucion = () => {
+    Alert.alert(
+      'Confirmar devolución',
+      `¿Desea registrar la devolución del equipo ${equipo.nombreequipo} por parte de ${personalSeleccionado?.nombre_completo || 'el usuario'}?`,
+      [
+        { 
+          text: 'Cancelar', 
+          style: 'cancel'
+        },
+        { 
+          text: 'Confirmar', 
+          onPress: registrarDevolucion 
+        }
+      ]
+    );
+  };
+
+  const registrarDevolucion = async () => {
+    if (!equipo || !prestamoActivo) return;
+    
+    setProcesando(true);
+    
+    try {
+      const { error } = await supabase.rpc('registrar_devolucion_app', {
+        p_idprestamo: prestamoActivo.idprestamo
+      });
+
+      if (error) throw error;
+
+      // Actualizar estado del equipo
+      const { error: errorEquipo } = await supabase
+        .from('equipos')
+        .update({ 
+          estado: 'disponible',
+          fechaactualizacion: new Date().toISOString() 
+        })
+        .eq('idequipo', equipo.idequipo);
+
+      if (errorEquipo) throw errorEquipo;
+
+      Alert.alert(
+        'Devolución registrada',
+        `El equipo ${equipo.nombreequipo} ha sido devuelto correctamente.`,
+        [{ text: 'Aceptar', onPress: () => navigation.goBack() }]
+      );
+    } catch (error) {
+      console.error('Error al registrar devolución:', error);
+      Alert.alert(
+        'Error', 
+        error.message || 'No se pudo registrar la devolución'
+      );
+    } finally {
+      setProcesando(false);
+    }
+  };
+
+  const renderPersonalItem = ({ item }) => (
+    <TouchableOpacity 
+      style={styles.personalItem}
+      onPress={() => handlePersonalSeleccionado(item)}
+    >
+      <Text style={styles.personalNombre}>{item.nombre_completo}</Text>
+      <Text style={styles.personalTipo}>{item.tipo_persona}</Text>
+    </TouchableOpacity>
+  );
 
   // Pantalla de carga
   if (loading) {
@@ -278,7 +383,7 @@ const DetallesEquipoScreen = () => {
                 procesando && styles.buttonDisabled,
                 equipo.estado === 'mantenimiento' && styles.buttonDisabled
               ]}
-              onPress={handlePrestamoDevolucion}
+              onPress={handlePrestamoPress}
               disabled={procesando || equipo.estado === 'mantenimiento'}
             >
               {procesando ? (
@@ -305,11 +410,39 @@ const DetallesEquipoScreen = () => {
           </View>
         </View>
       </ScrollView>
+
+      {/* Modal para selección de personal */}
+      <Modal
+        animationType="slide"
+        transparent={true}
+        visible={modalPersonalVisible}
+        onRequestClose={() => setModalPersonalVisible(false)}
+      >
+        <View style={styles.modalContainer}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Seleccionar personal</Text>
+            <Text style={styles.modalSubtitle}>Asignar préstamo a:</Text>
+            
+            <FlatList
+              data={personalDisponible}
+              renderItem={renderPersonalItem}
+              keyExtractor={(item) => item.idpersonal.toString()}
+              contentContainerStyle={styles.personalList}
+            />
+
+            <TouchableOpacity 
+              style={styles.cancelButton}
+              onPress={() => setModalPersonalVisible(false)}
+            >
+              <Text style={styles.cancelButtonText}>Cancelar</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 };
 
-// Los estilos se mantienen igual que en tu código original
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
@@ -457,6 +590,60 @@ const styles = StyleSheet.create({
     color: '#dc3545',
     textAlign: 'center',
     paddingVertical: 12,
+  },
+  modalContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0,0,0,0.5)',
+  },
+  modalContent: {
+    width: '90%',
+    backgroundColor: 'white',
+    borderRadius: 10,
+    padding: 20,
+    maxHeight: '80%',
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    marginBottom: 10,
+    color: '#2c3e50',
+  },
+  modalSubtitle: {
+    fontSize: 16,
+    marginBottom: 20,
+    color: '#6c757d',
+  },
+  personalList: {
+    paddingBottom: 20,
+  },
+  personalItem: {
+    padding: 15,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e9ecef',
+  },
+  personalNombre: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#2c3e50',
+  },
+  personalTipo: {
+    fontSize: 14,
+    color: '#6c757d',
+    marginTop: 4,
+  },
+  cancelButton: {
+    marginTop: 15,
+    padding: 12,
+    backgroundColor: '#f8f9fa',
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  cancelButtonText: {
+    color: '#dc3545',
+    fontSize: 16,
+    fontWeight: '600',
   },
 });
 

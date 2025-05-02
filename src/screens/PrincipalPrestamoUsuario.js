@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   View, 
   Text, 
@@ -12,59 +12,138 @@ import {
   ScrollView,
   SafeAreaView,
   StatusBar,
-  Platform,
   Dimensions,
-  Animated
+  Animated,
+  Easing,
+  Appearance
 } from 'react-native';
-import { MaterialIcons, FontAwesome } from '@expo/vector-icons';
+import { MaterialIcons, FontAwesome, Ionicons } from '@expo/vector-icons';
 import { supabase } from '../lib/supabase';
 import MenuUsuario from '../components/MenuUsuario';
 import QRScannerModal from '../components/QRScannerModal';
 
-const { width } = Dimensions.get('window');
+const { width, height } = Dimensions.get('window');
 
 const SolicitarPrestamoUsuario = ({ navigation }) => {
-  // Estados para datos y carga
+  // Estados
   const [categorias, setCategorias] = useState([]);
   const [equiposDisponibles, setEquiposDisponibles] = useState([]);
   const [personalDisponible, setPersonalDisponible] = useState([]);
   const [loading, setLoading] = useState(true);
-  
-  // Estados para modales y selecciones
   const [modalEquiposVisible, setModalEquiposVisible] = useState(false);
   const [modalPersonalVisible, setModalPersonalVisible] = useState(false);
   const [scannerVisible, setScannerVisible] = useState(false);
   const [menuVisible, setMenuVisible] = useState(false);
-  
-  // Estados para búsqueda y selección
   const [searchTerm, setSearchTerm] = useState('');
   const [categoriaSeleccionada, setCategoriaSeleccionada] = useState(null);
   const [equipoSeleccionado, setEquipoSeleccionado] = useState(null);
   const [personalSeleccionado, setPersonalSeleccionado] = useState(null);
   const [equipoPreseleccionado, setEquipoPreseleccionado] = useState(null);
   const [personalPreseleccionado, setPersonalPreseleccionado] = useState(null);
+  const [temaOscuro, setTemaOscuro] = useState(Appearance.getColorScheme() === 'dark');
 
-  // Animación para el efecto del menú
-  const scaleValue = new Animated.Value(1);
+  // Animaciones
+  const scaleValue = useRef(new Animated.Value(1)).current;
+  const modalSlideAnim = useRef(new Animated.Value(0)).current;
+  const fadeAnim = useRef(new Animated.Value(0)).current;
 
-  // Efecto para animar cuando el menú se abre/cierra
+  // Colores según el tema
+  const colores = {
+    fondo: temaOscuro ? '#121212' : '#f8f9fa',
+    fondoHeader: temaOscuro ? '#1e1e1e' : '#ffffff',
+    fondoCard: temaOscuro ? '#1e1e1e' : '#ffffff',
+    texto: temaOscuro ? '#e0e0e0' : '#1a202c',
+    textoSecundario: temaOscuro ? '#9e9e9e' : '#4a5568',
+    borde: temaOscuro ? '#424242' : '#e2e8f0',
+    botonPrimario: temaOscuro ? '#1976d2' : '#4f46e5',
+    botonDesactivado: temaOscuro ? '#424242' : '#d1d5db',
+    icono: temaOscuro ? '#e0e0e0' : '#4a5568',
+    overlay: temaOscuro ? 'rgba(30, 30, 30, 0.9)' : 'rgba(248, 249, 250, 0.9)',
+    inputFondo: temaOscuro ? '#1e1e1e' : '#ffffff',
+    inputTexto: temaOscuro ? '#e0e0e0' : '#1a202c',
+    inputPlaceholder: temaOscuro ? '#757575' : '#a0aec0',
+    activo: temaOscuro ? '#4caf50' : '#059669',
+    inactivo: temaOscuro ? '#f44336' : '#dc2626',
+    preseleccionado: temaOscuro ? '#1a237e' : '#2196f3',
+    seleccionado: temaOscuro ? '#0d47a1' : '#1976d2'
+  };
+
+  // Función para manejar el escaneo QR
+  const manejarEscaneoQR = async (qrData) => {
+    try {
+      setLoading(true);
+      setScannerVisible(false);
+      
+      const equipoId = qrData.split('/').pop();
+      
+      const { data: equipoData, error } = await supabase
+        .from('equipos')
+        .select('*, categoriasequipos(*)')
+        .eq('idequipo', equipoId)
+        .single();
+      
+      if (error || !equipoData) {
+        throw error || new Error('Equipo no encontrado');
+      }
+      
+      navigation.navigate('DetallesEquipo', { 
+        equipoId: equipoData.idequipo,
+        equipo: equipoData,
+        categoria: equipoData.categoriasequipos 
+      });
+      
+    } catch (error) {
+      console.error('Error al buscar equipo:', error);
+      Alert.alert('Error', 'No se pudo encontrar el equipo escaneado');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Efecto para animaciones del menú
   useEffect(() => {
     if (menuVisible) {
       Animated.spring(scaleValue, {
         toValue: 0.95,
         useNativeDriver: true,
+        damping: 20,
+        stiffness: 400
       }).start();
     } else {
       Animated.spring(scaleValue, {
         toValue: 1,
         useNativeDriver: true,
+        damping: 20,
+        stiffness: 400
       }).start();
     }
   }, [menuVisible]);
 
+  // Efecto para animación de entrada de modal
+  useEffect(() => {
+    if (modalEquiposVisible || modalPersonalVisible) {
+      modalSlideAnim.setValue(0);
+      Animated.timing(modalSlideAnim, {
+        toValue: 1,
+        duration: 300,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true
+      }).start();
+    }
+  }, [modalEquiposVisible, modalPersonalVisible]);
+
+  // Efecto para animación de fade in
+  useEffect(() => {
+    Animated.timing(fadeAnim, {
+      toValue: 1,
+      duration: 500,
+      useNativeDriver: true
+    }).start();
+  }, []);
+
   // Cargar datos iniciales
   useEffect(() => {
-    const fetchData = async () => {
+    const cargarDatos = async () => {
       try {
         setLoading(true);
         
@@ -96,12 +175,17 @@ const SolicitarPrestamoUsuario = ({ navigation }) => {
       }
     };
     
-    const unsubscribe = navigation.addListener('focus', fetchData);
+    const unsubscribe = navigation.addListener('focus', cargarDatos);
     return unsubscribe;
   }, [navigation]);
 
+  // Alternar tema claro/oscuro
+  const alternarTema = () => {
+    setTemaOscuro(!temaOscuro);
+  };
+
   // Manejar selección de categoría
-  const handleCategoriaPress = async (categoria) => {
+  const manejarSeleccionCategoria = async (categoria) => {
     try {
       setLoading(true);
       setEquipoPreseleccionado(null);
@@ -142,7 +226,7 @@ const SolicitarPrestamoUsuario = ({ navigation }) => {
   };
 
   // Manejar selección de equipo
-  const handleEquipoSeleccionado = (equipo) => {
+  const manejarEquipoSeleccionado = (equipo) => {
     if (!equipo) return;
     
     setEquipoSeleccionado(equipo);
@@ -153,67 +237,43 @@ const SolicitarPrestamoUsuario = ({ navigation }) => {
   };
 
   // Manejar selección de personal
-  const handlePersonalSeleccionado = (persona) => {
+  const manejarPersonalSeleccionado = (persona) => {
     if (!persona) return;
     
     setPersonalSeleccionado(persona);
     setPersonalPreseleccionado(null);
     setModalPersonalVisible(false);
-    confirmarPrestamo();
-  };
-
-  // Manejar escaneo QR
-  const handleScan = async (qrData) => {
-    try {
-      setLoading(true);
-      setScannerVisible(false);
-      
-      const equipoId = qrData.split('/').pop();
-      
-      const { data: equipoData, error } = await supabase
-        .from('equipos')
-        .select('*, categoriasequipos(*)')
-        .eq('idequipo', equipoId)
-        .single();
-      
-      if (error || !equipoData) {
-        throw error || new Error('Equipo no encontrado');
-      }
-      
-      navigation.navigate('DetallesEquipo', { 
-        equipoId: equipoData.idequipo,
-        equipo: equipoData,
-        categoria: equipoData.categoriasequipos 
-      });
-      
-    } catch (error) {
-      console.error('Error al buscar equipo:', error);
-      Alert.alert('Error', 'No se pudo encontrar el equipo escaneado');
-    } finally {
-      setLoading(false);
-    }
+    confirmarPrestamo(equipoSeleccionado, persona);
   };
 
   // Confirmar préstamo
-  const confirmarPrestamo = () => {
-    if (!equipoSeleccionado || !personalSeleccionado) {
+  const confirmarPrestamo = (equipo, personal) => {
+    if (!equipo || !personal) {
       Alert.alert('Error', 'Debe seleccionar tanto el equipo como el personal');
       return;
     }
 
     Alert.alert(
       'Confirmar préstamo',
-      `¿Desea registrar el préstamo de:\n\nEquipo: ${equipoSeleccionado.nombreequipo}\nA: ${personalSeleccionado.nombre_completo}?`,
+      `¿Desea registrar el préstamo de:\n\nEquipo: ${equipo.nombreequipo}\nA: ${personal.nombre_completo}?`,
       [
-        { text: 'Cancelar', style: 'cancel' },
-        { text: 'Confirmar', onPress: registrarPrestamo }
-      ]
+        { 
+          text: 'Cancelar', 
+          style: 'cancel',
+          onPress: () => setModalPersonalVisible(true)
+        },
+        { 
+          text: 'Confirmar', 
+          onPress: () => registrarPrestamo(equipo, personal)
+        }
+      ],
+      { cancelable: false }
     );
   };
 
-  // Registrar préstamo en Supabase
-  const registrarPrestamo = async () => {
-    if (!equipoSeleccionado || !personalSeleccionado) return;
+  // Registrar préstamo
+  const registrarPrestamo = async (equipo, personal) => {
+    if (!equipo || !personal) return;
     
     setLoading(true);
     try {
@@ -221,7 +281,7 @@ const SolicitarPrestamoUsuario = ({ navigation }) => {
       const { data: equipoVerificado, error: errorVerificacion } = await supabase
         .from('equipos')
         .select('estado')
-        .eq('idequipo', equipoSeleccionado.idequipo)
+        .eq('idequipo', equipo.idequipo)
         .single();
   
       if (errorVerificacion || !equipoVerificado) {
@@ -236,8 +296,8 @@ const SolicitarPrestamoUsuario = ({ navigation }) => {
       const { data: newPrestamo, error: errorPrestamo } = await supabase
         .from('prestamos')
         .insert({
-          idpersonal: personalSeleccionado.idpersonal,
-          idequipo: equipoSeleccionado.idequipo,
+          idpersonal: personal.idpersonal,
+          idequipo: equipo.idequipo,
           estado: 'Prestado',
           fechaprestamo: new Date().toISOString(),
           fechadevolucion_prevista: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
@@ -256,7 +316,7 @@ const SolicitarPrestamoUsuario = ({ navigation }) => {
           estado: 'prestado',
           fechaactualizacion: new Date().toISOString() 
         })
-        .eq('idequipo', equipoSeleccionado.idequipo);
+        .eq('idequipo', equipo.idequipo);
   
       if (errorEquipo) throw errorEquipo;
   
@@ -265,25 +325,35 @@ const SolicitarPrestamoUsuario = ({ navigation }) => {
         .from('historial_prestamos')
         .insert({
           idprestamo: newPrestamo.idprestamo,
-          idpersonal: personalSeleccionado.idpersonal,
+          idpersonal: personal.idpersonal,
           accion: 'Préstamo',
           fechaaccion: new Date().toISOString(),
-          detalles: `Préstamo del equipo ${equipoSeleccionado.nombreequipo} a ${personalSeleccionado.nombre_completo}`
+          detalles: `Préstamo del equipo ${equipo.nombreequipo} a ${personal.nombre_completo}`
         });
   
       if (errorHistorial) throw errorHistorial;
   
       Alert.alert(
         'Éxito', 
-        `Préstamo registrado:\n\nEquipo: ${equipoSeleccionado.nombreequipo}\nPersona: ${personalSeleccionado.nombre_completo}`,
-        [{ text: 'OK', onPress: resetForm }]
+        `Préstamo registrado:\n\nEquipo: ${equipo.nombreequipo}\nPersona: ${personal.nombre_completo}`,
+        [{ 
+          text: 'OK', 
+          onPress: () => {
+            resetearFormulario();
+            navigation.navigate('HistorialPrestamos');
+          }
+        }]
       );
       
     } catch (error) {
       console.error('Error registrando préstamo:', error);
       Alert.alert(
         'Error', 
-        error.message || 'No se pudo registrar el préstamo'
+        error.message || 'No se pudo registrar el préstamo',
+        [{
+          text: 'OK',
+          onPress: () => setModalPersonalVisible(true)
+        }]
       );
     } finally {
       setLoading(false);
@@ -291,7 +361,7 @@ const SolicitarPrestamoUsuario = ({ navigation }) => {
   };
 
   // Resetear formulario
-  const resetForm = () => {
+  const resetearFormulario = () => {
     setEquipoSeleccionado(null);
     setPersonalSeleccionado(null);
     setCategoriaSeleccionada(null);
@@ -301,43 +371,79 @@ const SolicitarPrestamoUsuario = ({ navigation }) => {
   };
 
   // Filtrar personal según búsqueda
-  const filteredPersonal = personalDisponible.filter(persona =>
+  const personalFiltrado = personalDisponible.filter(persona =>
     persona.nombre_completo.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   // Renderizar categorías
-  const renderCategoriaCard = ({ item }) => (
-    <TouchableOpacity 
-      style={styles.card} 
-      onPress={() => handleCategoriaPress(item)}
-      disabled={loading}
-      activeOpacity={0.7}
-    >
-      <View style={styles.cardHeader}>
-        <MaterialIcons 
-          name="category" 
-          size={24} 
-          color={item.estado === 'activo' ? '#4a6da7' : '#6c757d'} 
-        />
-        <Text style={styles.cardTitle}>{item.nombrecategoria}</Text>
-      </View>
-      <Text style={styles.cardDescription}>{item.descripcion}</Text>
-      <View style={styles.cardFooter}>
-        <Text style={styles.disponibleText}>
-          {item.estado === 'activo' ? 'Categoría activa' : 'Categoría inactiva'}
-        </Text>
-        <FontAwesome name="chevron-right" size={16} color="#4a6da7" />
-      </View>
-    </TouchableOpacity>
+  const renderizarCategoria = ({ item }) => (
+    <Animated.View style={{ opacity: fadeAnim }}>
+      <TouchableOpacity 
+        style={[
+          styles.card, 
+          { 
+            backgroundColor: colores.fondoCard,
+            borderColor: colores.borde
+          }
+        ]} 
+        onPress={() => manejarSeleccionCategoria(item)}
+        disabled={loading}
+        activeOpacity={0.8}
+      >
+        <View style={styles.cardHeader}>
+          <View style={[
+            styles.iconContainer,
+            { 
+              backgroundColor: item.estado === 'activo' ? colores.activo : colores.botonDesactivado
+            }
+          ]}>
+            <MaterialIcons 
+              name="category" 
+              size={20} 
+              color="white"
+            />
+          </View>
+          <Text style={[styles.cardTitle, { color: colores.texto }]}>{item.nombrecategoria}</Text>
+        </View>
+        <Text style={[styles.cardDescription, { color: colores.textoSecundario }]}>{item.descripcion}</Text>
+        <View style={[styles.cardFooter, { borderTopColor: colores.borde }]}>
+          <View style={[
+            styles.statusBadge,
+            { 
+              backgroundColor: item.estado === 'activo' ? `${colores.activo}20` : `${colores.inactivo}20`,
+              borderColor: item.estado === 'activo' ? colores.activo : colores.inactivo
+            }
+          ]}>
+            <Text style={[
+              styles.statusText,
+              { color: item.estado === 'activo' ? colores.activo : colores.inactivo }
+            ]}>
+              {item.estado === 'activo' ? 'Disponible' : 'No disponible'}
+            </Text>
+          </View>
+          <View style={[styles.arrowContainer, { backgroundColor: colores.borde }]}>
+            <FontAwesome name="chevron-right" size={14} color={colores.textoSecundario} />
+          </View>
+        </View>
+      </TouchableOpacity>
+    </Animated.View>
   );
 
   // Renderizar equipos
-  const renderEquipoItem = ({ item }) => (
+  const renderizarEquipo = ({ item }) => (
     <TouchableOpacity 
       style={[
         styles.listItem,
+        { 
+          backgroundColor: colores.fondoCard,
+          borderColor: colores.borde
+        },
         item.estado !== 'disponible' && styles.itemDisabled,
-        equipoPreseleccionado?.idequipo === item.idequipo && styles.itemPreselected
+        equipoPreseleccionado?.idequipo === item.idequipo && {
+          backgroundColor: colores.preseleccionado,
+          borderLeftWidth: 6,
+          borderLeftColor: colores.botonPrimario
+        }
       ]}
       onPress={() => {
         if (item.estado === 'disponible') {
@@ -346,35 +452,51 @@ const SolicitarPrestamoUsuario = ({ navigation }) => {
       }}
       onLongPress={() => {
         if (item.estado === 'disponible') {
-          handleEquipoSeleccionado(item);
+          manejarEquipoSeleccionado(item);
         }
       }}
       disabled={item.estado !== 'disponible'}
-      activeOpacity={0.7}
+      activeOpacity={0.8}
     >
       <View style={styles.equipoInfo}>
         <Text style={[
           styles.listItemTitle,
-          equipoPreseleccionado?.idequipo === item.idequipo && styles.selectedText
+          { color: colores.texto },
+          equipoPreseleccionado?.idequipo === item.idequipo && { color: 'white' }
         ]}>
           {item.nombreequipo}
         </Text>
-        <Text style={styles.listItemText}>
-          <Text style={styles.label}>Categoría: </Text>
+        <Text style={[
+          styles.listItemText, 
+          { color: colores.texto },
+          equipoPreseleccionado?.idequipo === item.idequipo && { color: 'white' }
+        ]}>
+          <Text style={[
+            styles.label, 
+            { color: colores.textoSecundario },
+            equipoPreseleccionado?.idequipo === item.idequipo && { color: 'rgba(255,255,255,0.8)' }
+          ]}>Categoría: </Text>
           {item.categoriasequipos?.nombrecategoria || 'General'}
         </Text>
         {item.descripcion && (
-          <Text style={styles.listItemText}>{item.descripcion}</Text>
+          <Text style={[
+            styles.listItemText, 
+            { color: colores.texto },
+            equipoPreseleccionado?.idequipo === item.idequipo && { color: 'white' }
+          ]}>{item.descripcion}</Text>
         )}
       </View>
       
       <View style={[
         styles.statusBadge,
-        { backgroundColor: item.estado === 'disponible' ? '#e6f7ee' : '#fff0f0' }
+        { 
+          backgroundColor: item.estado === 'disponible' ? `${colores.activo}20` : `${colores.inactivo}20`,
+          borderColor: item.estado === 'disponible' ? colores.activo : colores.inactivo
+        }
       ]}>
         <Text style={[
           styles.statusText,
-          { color: item.estado === 'disponible' ? '#28a745' : '#dc3545' }
+          { color: item.estado === 'disponible' ? colores.activo : colores.inactivo }
         ]}>
           {item.estado.toUpperCase()}
         </Text>
@@ -383,12 +505,24 @@ const SolicitarPrestamoUsuario = ({ navigation }) => {
   );
 
   // Renderizar personal
-  const renderPersonalItem = ({ item }) => (
+  const renderizarPersonal = ({ item }) => (
     <TouchableOpacity 
       style={[
         styles.listItem,
-        personalPreseleccionado?.idpersonal === item.idpersonal && styles.itemPreselected,
-        personalSeleccionado?.idpersonal === item.idpersonal && styles.itemSelected,
+        { 
+          backgroundColor: colores.fondoCard,
+          borderColor: colores.borde
+        },
+        personalPreseleccionado?.idpersonal === item.idpersonal && {
+          backgroundColor: colores.preseleccionado,
+          borderLeftWidth: 6,
+          borderLeftColor: colores.botonPrimario
+        },
+        personalSeleccionado?.idpersonal === item.idpersonal && {
+          backgroundColor: colores.seleccionado,
+          borderLeftWidth: 6,
+          borderLeftColor: colores.botonPrimario
+        },
         item.estado === 'inactivo' && styles.itemDisabled
       ]} 
       onPress={() => {
@@ -398,98 +532,131 @@ const SolicitarPrestamoUsuario = ({ navigation }) => {
       }}
       onLongPress={() => {
         if (item.estado === 'activo') {
-          handlePersonalSeleccionado(item);
+          manejarPersonalSeleccionado(item);
         }
       }}
       disabled={item.estado === 'inactivo'}
-      activeOpacity={0.7}
+      activeOpacity={0.8}
     >
       <View>
         <Text style={[
           styles.listItemText,
+          { color: colores.texto },
           (personalPreseleccionado?.idpersonal === item.idpersonal || 
-           personalSeleccionado?.idpersonal === item.idpersonal) && styles.selectedText
+           personalSeleccionado?.idpersonal === item.idpersonal) && { color: 'white' }
         ]}>
           {item.nombre_completo}
         </Text>
-        <Text style={styles.listItemSubText}>{item.tipo_persona}</Text>
-      </View>
-      <MaterialIcons 
-        name="person" 
-        size={24} 
-        color={
-          item.estado === 'inactivo' ? '#ced4da' :
+        <Text style={[
+          styles.listItemSubText, 
+          { color: colores.textoSecundario },
           (personalPreseleccionado?.idpersonal === item.idpersonal ||
-           personalSeleccionado?.idpersonal === item.idpersonal) ? '#4a6da7' : '#adb5bd'
-        } 
-      />
+           personalSeleccionado?.idpersonal === item.idpersonal) && { color: 'rgba(255,255,255,0.8)' }
+        ]}>{item.tipo_persona}</Text>
+      </View>
+      <View style={[
+        styles.personIconContainer,
+        { backgroundColor: colores.borde },
+        (personalPreseleccionado?.idpersonal === item.idpersonal ||
+         personalSeleccionado?.idpersonal === item.idpersonal) && {
+          backgroundColor: colores.botonPrimario
+        }
+      ]}>
+        <MaterialIcons 
+          name="person" 
+          size={20} 
+          color={
+            item.estado === 'inactivo' ? colores.botonDesactivado :
+            (personalPreseleccionado?.idpersonal === item.idpersonal ||
+             personalSeleccionado?.idpersonal === item.idpersonal) ? 'white' : colores.textoSecundario
+          } 
+        />
+      </View>
     </TouchableOpacity>
   );
 
+  // Componente ContenedorModal
+  const ContenedorModal = ({ children }) => (
+    <Animated.View 
+      style={[
+        styles.modalContainer,
+        {
+          transform: [{
+            translateY: modalSlideAnim.interpolate({
+              inputRange: [0, 1],
+              outputRange: [50, 0]
+            })
+          }],
+          opacity: modalSlideAnim,
+          backgroundColor: colores.fondoCard,
+          borderRadius: 16,
+          overflow: 'hidden',
+          marginHorizontal: 16
+        }
+      ]}
+    >
+      <View style={[styles.modalContent, { borderColor: colores.borde }]}>
+        {children}
+      </View>
+    </Animated.View>
+  );
+
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <StatusBar barStyle="dark-content" backgroundColor="#f8f9fa" />
+    <SafeAreaView style={[styles.safeArea, { backgroundColor: colores.fondo }]}>
+      <StatusBar barStyle={temaOscuro ? 'light-content' : 'dark-content'} backgroundColor={colores.fondoHeader} />
       
-      {/* Menú lateral con overlay */}
       {menuVisible && (
-        <MenuUsuario 
-          navigation={navigation} 
-          onClose={() => setMenuVisible(false)} 
-        />
+        <MenuUsuario navigation={navigation} onClose={() => setMenuVisible(false)} temaOscuro={temaOscuro} />
       )}
 
-      {/* Contenido principal con animación */}
-      <Animated.View style={[
-        styles.container,
-        { transform: [{ scale: scaleValue }] }
-      ]}>
-        {/* Header */}
-        <View style={styles.header}>
+      <Animated.View style={[styles.container, { transform: [{ scale: scaleValue }], backgroundColor: colores.fondo }]}>
+        {/* Encabezado */}
+        <View style={[styles.header, { backgroundColor: colores.fondoHeader, borderBottomColor: colores.borde }]}>
           <TouchableOpacity 
             onPress={() => setMenuVisible(true)} 
-            style={styles.menuButton} 
-            activeOpacity={0.7}
+            style={[styles.menuButton, { backgroundColor: `${colores.borde}50` }]}
+            activeOpacity={0.8}
           >
-            <MaterialIcons name="menu" size={28} color="#4a6da7" />
+            <MaterialIcons name="menu" size={28} color={colores.icono} />
           </TouchableOpacity>
           
-          <Text style={styles.headerTitle}>Préstamos Directos</Text>
+          <Text style={[styles.headerTitle, { color: colores.texto }]}>Préstamos Directos</Text>
           
-          <TouchableOpacity 
-            onPress={() => setScannerVisible(true)}
-            style={styles.scanButton}
-            disabled={loading}
-            activeOpacity={0.7}
-          >
-            <MaterialIcons 
-              name="qr-code-scanner" 
-              size={28} 
-              color={loading ? '#adb5bd' : '#4a6da7'} 
-            />
-          </TouchableOpacity>
+          <View style={styles.headerRight}>
+            <TouchableOpacity 
+              onPress={alternarTema}
+              style={[styles.themeButton, { backgroundColor: `${colores.borde}50` }]}
+              activeOpacity={0.8}
+            >
+              <MaterialIcons 
+                name={temaOscuro ? 'wb-sunny' : 'brightness-2'} 
+                size={24} 
+                color={colores.icono} 
+              />
+            </TouchableOpacity>
+          </View>
         </View>
 
         {/* Listado de categorías */}
         <ScrollView 
-          contentContainerStyle={styles.listContainer}
-          showsVerticalScrollIndicator={false}
+          contentContainerStyle={[styles.listContainer, { paddingBottom: 100 }]}
         >
           {loading && categorias.length === 0 ? (
             <View style={styles.loadingContainer}>
-              <ActivityIndicator size="large" color="#4a6da7" />
-              <Text style={styles.loadingText}>Cargando datos...</Text>
+              <ActivityIndicator size="large" color={colores.botonPrimario} />
+              <Text style={[styles.loadingText, { color: colores.textoSecundario }]}>Cargando categorías...</Text>
             </View>
           ) : categorias.length === 0 ? (
             <View style={styles.emptyContainer}>
-              <MaterialIcons name="error-outline" size={50} color="#6c757d" />
-              <Text style={styles.emptyText}>No hay categorías disponibles</Text>
+              <Ionicons name="file-tray-outline" size={48} color={colores.textoSecundario} />
+              <Text style={[styles.emptyText, { color: colores.textoSecundario }]}>No hay categorías disponibles</Text>
             </View>
           ) : (
             <>
-              <Text style={styles.sectionTitle}>Seleccione una categoría:</Text>
+              <Text style={[styles.sectionTitle, { color: colores.textoSecundario }]}>Seleccione una categoría:</Text>
               <FlatList
                 data={categorias}
-                renderItem={renderCategoriaCard}
+                renderItem={renderizarCategoria}
                 keyExtractor={(item) => item.idcategoria.toString()}
                 scrollEnabled={false}
               />
@@ -497,146 +664,189 @@ const SolicitarPrestamoUsuario = ({ navigation }) => {
           )}
         </ScrollView>
 
+        {/* Botón flotante para escanear */}
+        <TouchableOpacity 
+          style={[
+            styles.scanFab,
+            { 
+              backgroundColor: colores.botonPrimario,
+              shadowColor: temaOscuro ? '#000' : colores.botonPrimario
+            }
+          ]}
+          onPress={() => setScannerVisible(true)}
+          disabled={loading}
+          activeOpacity={0.8}
+        >
+          <MaterialIcons 
+            name="qr-code-scanner" 
+            size={28} 
+            color="white" 
+          />
+          <Text style={styles.scanFabText}>Escanear QR</Text>
+        </TouchableOpacity>
+
         {/* Modal para selección de equipos */}
         <Modal
-          animationType="slide"
-          transparent={false}
+          animationType="fade"
+          transparent={true}
           visible={modalEquiposVisible}
-          onRequestClose={() => {
-            setEquipoPreseleccionado(null);
-            setModalEquiposVisible(false);
-          }}
+          onRequestClose={() => setModalEquiposVisible(false)}
         >
-          <View style={styles.modalContainer}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Seleccionar equipo</Text>
-              <Text style={styles.modalSubtitle}>{categoriaSeleccionada?.nombrecategoria || 'Categoría no especificada'}</Text>
-            </View>
-            
-            {loading ? (
-              <View style={styles.loadingContainer}>
-                <ActivityIndicator size="large" color="#4a6da7" />
-                <Text style={styles.loadingText}>Buscando equipos...</Text>
+          <View style={[styles.modalOverlay, { backgroundColor: 'rgba(0, 0, 0, 0.8)' }]}>
+            <ContenedorModal>
+              <View style={[styles.modalHeader, { 
+                backgroundColor: colores.fondoCard, 
+                borderBottomColor: colores.borde 
+              }]}>
+                <Text style={[styles.modalTitle, { color: colores.texto }]}>Seleccionar equipo</Text>
+                <Text style={[styles.modalSubtitle, { color: colores.textoSecundario }]}>
+                  {categoriaSeleccionada?.nombrecategoria || 'Categoría no especificada'}
+                </Text>
               </View>
-            ) : equiposDisponibles.length === 0 ? (
-              <View style={styles.emptyContainer}>
-                <MaterialIcons name="error-outline" size={50} color="#6c757d" />
-                <Text style={styles.emptyText}>No hay equipos disponibles en esta categoría</Text>
-              </View>
-            ) : (
-              <>
-                <FlatList
-                  data={equiposDisponibles}
-                  renderItem={renderEquipoItem}
-                  keyExtractor={(item) => item.idequipo.toString()}
-                  contentContainerStyle={{ paddingBottom: 15 }}
-                />
-                <View style={styles.confirmationContainer}>
-                  <TouchableOpacity 
-                    style={[
-                      styles.confirmButton,
-                      !equipoPreseleccionado && styles.buttonDisabled
-                    ]}
-                    onPress={() => equipoPreseleccionado && handleEquipoSeleccionado(equipoPreseleccionado)}
-                    disabled={!equipoPreseleccionado}
-                    activeOpacity={0.7}
-                  >
-                    <Text style={styles.confirmButtonText}>
-                      {equipoPreseleccionado ? `Confirmar ${equipoPreseleccionado.nombreequipo}` : 'Seleccione un equipo'}
-                    </Text>
-                  </TouchableOpacity>
+              
+              {loading ? (
+                <View style={styles.loadingContainer}>
+                  <ActivityIndicator size="large" color={colores.botonPrimario} />
+                  <Text style={[styles.loadingText, { color: colores.textoSecundario }]}>Buscando equipos...</Text>
                 </View>
-              </>
-            )}
-            
-            <TouchableOpacity 
-              style={styles.cancelButton}
-              onPress={() => {
-                setEquipoPreseleccionado(null);
-                setModalEquiposVisible(false);
-              }}
-              activeOpacity={0.7}
-            >
-              <Text style={styles.cancelButtonText}>Volver a categorías</Text>
-            </TouchableOpacity>
+              ) : equiposDisponibles.length === 0 ? (
+                <View style={styles.emptyContainer}>
+                  <MaterialIcons name="error-outline" size={50} color={colores.textoSecundario} />
+                  <Text style={[styles.emptyText, { color: colores.textoSecundario }]}>No hay equipos disponibles en esta categoría</Text>
+                </View>
+              ) : (
+                <>
+                  <FlatList
+                    data={equiposDisponibles}
+                    renderItem={renderizarEquipo}
+                    keyExtractor={(item) => item.idequipo.toString()}
+                    contentContainerStyle={{ paddingBottom: 15 }}
+                  />
+                  <View style={[styles.confirmationContainer, { 
+                    backgroundColor: colores.fondoCard, 
+                    borderTopColor: colores.borde 
+                  }]}>
+                    <TouchableOpacity 
+                      style={[
+                        styles.confirmButton,
+                        { backgroundColor: colores.botonPrimario },
+                        !equipoPreseleccionado && { backgroundColor: colores.botonDesactivado }
+                      ]}
+                      onPress={() => equipoPreseleccionado && manejarEquipoSeleccionado(equipoPreseleccionado)}
+                      disabled={!equipoPreseleccionado}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={styles.confirmButtonText}>
+                        {equipoPreseleccionado ? `Confirmar ${equipoPreseleccionado.nombreequipo}` : 'Seleccione un equipo'}
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                </>
+              )}
+              
+              <TouchableOpacity 
+                style={[styles.cancelButton, { 
+                  backgroundColor: colores.fondoCard, 
+                  borderColor: colores.textoSecundario 
+                }]}
+                onPress={() => setModalEquiposVisible(false)}
+                activeOpacity={0.8}
+              >
+                <Text style={[styles.cancelButtonText, { color: colores.texto }]}>Volver a categorías</Text>
+              </TouchableOpacity>
+            </ContenedorModal>
           </View>
         </Modal>
 
         {/* Modal para selección de personal */}
         <Modal
-          animationType="slide"
-          transparent={false}
+          animationType="fade"
+          transparent={true}
           visible={modalPersonalVisible}
-          onRequestClose={() => {
-            setPersonalPreseleccionado(null);
-            setModalPersonalVisible(false);
-          }}
+          onRequestClose={() => setModalPersonalVisible(false)}
         >
-          <View style={styles.modalContainer}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Asignar a persona</Text>
-              <Text style={styles.modalSubtitle}>Seleccione el beneficiario</Text>
-              {equipoSeleccionado && (
-                <Text style={styles.modalSubtitle}>Equipo: {equipoSeleccionado.nombreequipo}</Text>
-              )}
-            </View>
-            
-            <TextInput
-              style={styles.searchInput}
-              placeholder="Buscar personal..."
-              placeholderTextColor="#6c757d"
-              value={searchTerm}
-              onChangeText={setSearchTerm}
-            />
-            
-            {loading ? (
-              <View style={styles.loadingContainer}>
-                <ActivityIndicator size="large" color="#4a6da7" />
-                <Text style={styles.loadingText}>Cargando personal...</Text>
+          <View style={[styles.modalOverlay, { backgroundColor: 'rgba(0, 0, 0, 0.8)' }]}>
+            <ContenedorModal>
+              <View style={[styles.modalHeader, { 
+                backgroundColor: colores.fondoCard, 
+                borderBottomColor: colores.borde 
+              }]}>
+                <Text style={[styles.modalTitle, { color: colores.texto }]}>Asignar a persona</Text>
+                <Text style={[styles.modalSubtitle, { color: colores.textoSecundario }]}>Seleccione el beneficiario</Text>
+                {equipoSeleccionado && (
+                  <Text style={[styles.modalSubtitle, { color: colores.textoSecundario }]}>Equipo: {equipoSeleccionado.nombreequipo}</Text>
+                )}
               </View>
-            ) : filteredPersonal.length === 0 ? (
-              <View style={styles.emptyContainer}>
-                <MaterialIcons name="person-off" size={50} color="#6c757d" />
-                <Text style={styles.emptyText}>
-                  {searchTerm ? 'No se encontraron coincidencias' : 'No hay personal disponible'}
-                </Text>
-              </View>
-            ) : (
-              <>
-                <FlatList
-                  data={filteredPersonal}
-                  renderItem={renderPersonalItem}
-                  keyExtractor={(item) => item.idpersonal.toString()}
-                  contentContainerStyle={{ paddingBottom: 15 }}
-                />
-                <View style={styles.confirmationContainer}>
-                  <TouchableOpacity 
-                    style={[
-                      styles.confirmButton,
-                      !personalPreseleccionado && styles.buttonDisabled
-                    ]}
-                    onPress={() => personalPreseleccionado && handlePersonalSeleccionado(personalPreseleccionado)}
-                    disabled={!personalPreseleccionado}
-                    activeOpacity={0.7}
-                  >
-                    <Text style={styles.confirmButtonText}>
-                      {personalPreseleccionado ? `Confirmar ${personalPreseleccionado.nombre_completo}` : 'Seleccione una persona'}
-                    </Text>
-                  </TouchableOpacity>
+              
+              <TextInput
+                style={[
+                  styles.searchInput,
+                  { 
+                    backgroundColor: colores.inputFondo,
+                    color: colores.inputTexto,
+                    borderColor: colores.borde,
+                    placeholderTextColor: colores.inputPlaceholder
+                  }
+                ]}
+                placeholder="Buscar personal..."
+                placeholderTextColor={colores.inputPlaceholder}
+                value={searchTerm}
+                onChangeText={setSearchTerm}
+              />
+              
+              {loading ? (
+                <View style={styles.loadingContainer}>
+                  <ActivityIndicator size="large" color={colores.botonPrimario} />
+                  <Text style={[styles.loadingText, { color: colores.textoSecundario }]}>Cargando personal...</Text>
                 </View>
-              </>
-            )}
-            
-            <TouchableOpacity 
-              style={styles.cancelButton}
-              onPress={() => {
-                setPersonalPreseleccionado(null);
-                setModalPersonalVisible(false);
-              }}
-              activeOpacity={0.7}
-            >
-              <Text style={styles.cancelButtonText}>Cancelar préstamo</Text>
-            </TouchableOpacity>
+              ) : personalFiltrado.length === 0 ? (
+                <View style={styles.emptyContainer}>
+                  <Ionicons name="people-outline" size={50} color={colores.textoSecundario} />
+                  <Text style={[styles.emptyText, { color: colores.textoSecundario }]}>
+                    {searchTerm ? 'No se encontraron coincidencias' : 'No hay personal disponible'}
+                  </Text>
+                </View>
+              ) : (
+                <>
+                  <FlatList
+                    data={personalFiltrado}
+                    renderItem={renderizarPersonal}
+                    keyExtractor={(item) => item.idpersonal.toString()}
+                    contentContainerStyle={{ paddingBottom: 15 }}
+                  />
+                  <View style={[styles.confirmationContainer, { 
+                    backgroundColor: colores.fondoCard, 
+                    borderTopColor: colores.borde 
+                  }]}>
+                    <TouchableOpacity 
+                      style={[
+                        styles.confirmButton,
+                        { backgroundColor: colores.botonPrimario },
+                        !personalPreseleccionado && { backgroundColor: colores.botonDesactivado }
+                      ]}
+                      onPress={() => personalPreseleccionado && manejarPersonalSeleccionado(personalPreseleccionado)}
+                      disabled={!personalPreseleccionado}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={styles.confirmButtonText}>
+                        {personalPreseleccionado ? `Confirmar ${personalPreseleccionado.nombre_completo}` : 'Seleccione una persona'}
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                </>
+              )}
+              
+              <TouchableOpacity 
+                style={[styles.cancelButton, { 
+                  backgroundColor: colores.fondoCard, 
+                  borderColor: colores.textoSecundario 
+                }]}
+                onPress={() => setModalPersonalVisible(false)}
+                activeOpacity={0.8}
+              >
+                <Text style={[styles.cancelButtonText, { color: colores.texto }]}>Cancelar préstamo</Text>
+              </TouchableOpacity>
+            </ContenedorModal>
           </View>
         </Modal>
 
@@ -644,14 +854,15 @@ const SolicitarPrestamoUsuario = ({ navigation }) => {
         <QRScannerModal
           visible={scannerVisible}
           onClose={() => setScannerVisible(false)}
-          onScan={handleScan}
+          onScan={manejarEscaneoQR}
+          theme={temaOscuro ? "dark" : "light"}
         />
 
         {/* Overlay de carga */}
         {loading && (
-          <View style={styles.loadingOverlay}>
-            <ActivityIndicator size="large" color="#4a6da7" />
-            <Text style={styles.loadingText}>Procesando...</Text>
+          <View style={[styles.loadingOverlay, { backgroundColor: colores.overlay }]}>
+            <ActivityIndicator size="large" color={colores.botonPrimario} />
+            <Text style={[styles.loadingText, { color: colores.texto }]}>Procesando...</Text>
           </View>
         )}
       </Animated.View>
@@ -662,248 +873,274 @@ const SolicitarPrestamoUsuario = ({ navigation }) => {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#f8f9fa',
   },
   container: {
     flex: 1,
-    backgroundColor: '#f8f9fa',
     maxWidth: 500,
     width: '100%',
-    marginHorizontal: Platform.select({
-      web: 'auto',
-      default: undefined
-    }),
+    alignSelf: 'center',
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: 15,
-    backgroundColor: 'white',
+    padding: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-    zIndex: 1,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+    elevation: 10,
+    zIndex: 10,
+  },
+  headerRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
   menuButton: {
     padding: 8,
+    borderRadius: 8,
+  },
+  themeButton: {
+    padding: 8,
+    borderRadius: 8,
   },
   headerTitle: {
     fontSize: 20,
-    fontWeight: '600',
-    color: '#343a40',
-  },
-  scanButton: {
-    padding: 8,
-  },
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#4a6da7',
-    marginBottom: 10,
-    paddingHorizontal: 15,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 1,
   },
   listContainer: {
-    padding: 15,
-    flexGrow: 1,
+    padding: 16,
+    paddingBottom: 24,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    marginBottom: 16,
+    letterSpacing: 0.5,
   },
   card: {
-    backgroundColor: 'white',
-    borderRadius: 10,
+    borderRadius: 12,
     padding: 20,
-    marginBottom: 15,
+    marginBottom: 16,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
-    width: width - 30,
-    marginHorizontal: 15,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+    elevation: 6,
+    borderWidth: 1,
   },
   cardHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 10,
+    marginBottom: 12,
+  },
+  iconContainer: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
   },
   cardTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#495057',
-    marginLeft: 10,
+    flex: 1,
   },
   cardDescription: {
     fontSize: 14,
-    color: '#6c757d',
-    marginBottom: 15,
+    marginBottom: 16,
+    lineHeight: 20,
   },
   cardFooter: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     borderTopWidth: 1,
-    borderTopColor: '#e9ecef',
-    paddingTop: 15,
+    paddingTop: 16,
   },
-  disponibleText: {
-    fontSize: 14,
-    color: '#28a745',
-    fontWeight: '500',
+  statusBadge: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 12,
+    borderWidth: 1,
   },
-  modalContainer: {
-    flex: 1,
-    backgroundColor: 'white',
-    paddingHorizontal: 15,
-    paddingTop: 20,
+  statusText: {
+    fontSize: 12,
+    fontWeight: 'bold',
   },
-  modalHeader: {
-    marginBottom: 20,
-    paddingBottom: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: '#e9ecef',
-  },
-  modalTitle: {
-    fontSize: 22,
-    fontWeight: '600',
-    color: '#343a40',
-  },
-  modalSubtitle: {
-    fontSize: 16,
-    color: '#6c757d',
-    marginTop: 5,
+  arrowContainer: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   listItem: {
-    padding: 15,
-    borderBottomWidth: 1,
-    borderBottomColor: '#e9ecef',
+    padding: 16,
+    marginBottom: 8,
+    borderRadius: 8,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: 'white',
-  },
-  itemSelected: {
-    backgroundColor: '#f0f7ff',
-    borderLeftWidth: 4,
-    borderLeftColor: '#4a6da7',
-  },
-  itemPreselected: {
-    backgroundColor: '#e6f3ff',
-    borderLeftWidth: 4,
-    borderLeftColor: '#8ab6f9',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 3,
+    elevation: 3,
+    borderWidth: 1,
   },
   itemDisabled: {
     opacity: 0.6,
   },
   listItemText: {
     fontSize: 16,
-    color: '#495057',
     fontWeight: '500',
-  },
-  selectedText: {
-    fontWeight: 'bold',
-    color: '#2c5282',
   },
   listItemSubText: {
     fontSize: 14,
-    color: '#6c757d',
-    marginTop: 3,
+    marginTop: 4,
   },
   listItemTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#343a40',
-    marginBottom: 5,
+    marginBottom: 4,
   },
   label: {
-    color: '#6c757d',
     fontWeight: 'normal',
   },
   equipoInfo: {
     flex: 1,
+    marginRight: 12,
   },
-  statusBadge: {
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 15,
-    alignSelf: 'flex-start',
+  personIconContainer: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
-  statusText: {
-    fontSize: 12,
-    fontWeight: 'bold',
+  modalOverlay: {
+    flex: 1,
+    justifyContent: 'center',
+  },
+  modalContainer: {
+    flex: 1,
+    maxHeight: Dimensions.get('window').height * 0.85,
+    marginTop: 'auto',
+    marginBottom: 'auto',
+  },
+  modalContent: {
+    borderRadius: 16,
+    overflow: 'hidden',
+  },
+  modalHeader: {
+    padding: 24,
+    paddingBottom: 16,
+    borderBottomWidth: 1,
+  },
+  modalTitle: {
+    fontSize: 22,
+    fontWeight: '700',
+    marginBottom: 4,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  modalSubtitle: {
+    fontSize: 14,
+    marginTop: 2,
   },
   searchInput: {
-    height: 50,
-    borderColor: '#ced4da',
+    height: 48,
     borderWidth: 1,
     borderRadius: 8,
-    paddingHorizontal: 15,
-    marginBottom: 15,
+    paddingHorizontal: 16,
+    margin: 16,
     fontSize: 16,
-    color: '#495057',
-    backgroundColor: 'white',
   },
   cancelButton: {
-    backgroundColor: '#e9ecef',
-    padding: 15,
-    borderRadius: 8,
+    padding: 16,
     alignItems: 'center',
-    marginVertical: 15,
+    margin: 16,
+    borderRadius: 8,
+    borderWidth: 1,
   },
   cancelButtonText: {
-    color: '#495057',
     fontSize: 16,
-    fontWeight: '500',
+    fontWeight: '600',
   },
   confirmationContainer: {
-    paddingVertical: 15,
+    padding: 16,
     borderTopWidth: 1,
-    borderTopColor: '#e2e8f0',
   },
   confirmButton: {
-    backgroundColor: '#4299e1',
-    padding: 15,
+    padding: 16,
     borderRadius: 8,
     alignItems: 'center',
-  },
-  buttonDisabled: {
-    backgroundColor: '#a0aec0',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.4,
+    shadowRadius: 4,
+    elevation: 5,
   },
   confirmButtonText: {
     color: 'white',
-    fontWeight: 'bold',
+    fontWeight: '700',
     fontSize: 16,
+    letterSpacing: 0.5,
   },
   emptyContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 20,
+    padding: 40,
   },
   emptyText: {
     fontSize: 16,
-    color: '#6c757d',
-    marginTop: 15,
+    marginTop: 16,
     textAlign: 'center',
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    padding: 40,
   },
   loadingText: {
-    marginTop: 10,
+    marginTop: 16,
     fontSize: 16,
-    color: '#6c757d',
   },
   loadingOverlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(255, 255, 255, 0.9)',
     justifyContent: 'center',
     alignItems: 'center',
     zIndex: 10,
+  },
+  scanFab: {
+    position: 'absolute',
+    bottom: 30,
+    right: 30,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: width * 0.4,
+    height: 50,
+    borderRadius: 25,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+    elevation: 6,
+    zIndex: 5,
+  },
+  scanFabText: {
+    color: 'white',
+    fontWeight: '600',
+    marginLeft: 8,
+    fontSize: 16,
   },
 });
 

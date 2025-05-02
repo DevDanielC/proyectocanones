@@ -1,25 +1,37 @@
 {
   "cli": {
-    "version": ">= 16.1.0"
+    "version": ">= 16.1.0",
+    "appVersionSource": "local"
   },
   "build": {
     "development": {
       "developmentClient": true,
       "distribution": "internal",
       "android": {
-        "buildType": "apk"  
+        "buildType": "apk"
+      },
+      "ios": {
+        "simulator": true
       }
     },
     "preview": {
       "distribution": "internal",
       "android": {
         "buildType": "apk"
+      },
+      "ios": {
+        "enterpriseProvisioning": "universal",
+        "buildConfiguration": "Release"
       }
     },
     "production": {
       "android": {
         "buildType": "apk",
         "image": "ubuntu-22.04-jdk-17-ndk-r25b"
+      },
+      "ios": {
+        "enterpriseProvisioning": "universal",
+        "buildConfiguration": "Release"
       }
     }
   }

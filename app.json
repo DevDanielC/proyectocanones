@@ -1,7 +1,8 @@
 {
   "expo": {
-    "name": "miapp22",
-    "slug": "miapp2",
+    "name": "utr",
+    "slug": "utr",
+    
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/logoUTR.png",
@@ -19,7 +20,7 @@
     ],
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.anonymous.miapp2",
+      "bundleIdentifier": "com.anonymous.UTR",
       "buildNumber": "1.0.0",
       "infoPlist": {
         "NSCameraUsageDescription": "Esta app necesita acceso a la cámara para escanear códigos QR de equipos",
@@ -36,7 +37,7 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "package": "com.anonymous.miapp2",
+      "package": "com.anonymous.UTR",
       "versionCode": 1,
       "permissions": [
         "android.permission.CAMERA",
@@ -68,7 +69,7 @@
       "supabaseUrl": "https://dqiynypelfrofpyodrtx.supabase.co",
       "supabaseKey": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRxaXlueXBlbGZyb2ZweW9kcnR4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDQ1NjMyNzgsImV4cCI6MjA2MDEzOTI3OH0.nTYDHWCzZmufRlNJJOcPfxve9TBToj1BUtrFsB33zI4",
       "eas": {
-        "projectId": "bba4e961-68a6-4cb4-b521-fbaa75f7979d"
+        "projectId": "bb5a2bda-7637-4bf2-90eb-f8065490fc3d"
       }
     },
   "plugins": [
@@ -90,6 +91,6 @@
     "runtimeVersion": {
       "policy": "sdkVersion"
     },
-    "owner": "josem_02"
+    "owner": "josem_03"
   }
 }
