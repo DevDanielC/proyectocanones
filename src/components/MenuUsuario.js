@@ -7,8 +7,12 @@ import {
   Animated,
   ScrollView,
   BackHandler,
-  I18nManager,
-  useWindowDimensions
+  Modal,
+  Image,
+  Dimensions,
+  Share,
+  Platform,
+  Linking
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { useNavigation } from '@react-navigation/native';
@@ -16,10 +20,11 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const MenuUsuario = ({ navigation, onClose, temaOscuro, alternarTema }) => {
   const insets = useSafeAreaInsets();
-  const { width } = useWindowDimensions();
+  const { width } = Dimensions.get('window');
   const MENU_WIDTH = Math.min(width * 0.75, 275);
   const slideAnim = useRef(new Animated.Value(-MENU_WIDTH)).current;
   const [activeRoute, setActiveRoute] = useState('');
+  const [modalVisible, setModalVisible] = useState(false);
 
   // Colores según el tema
   const colores = {
@@ -28,7 +33,8 @@ const MenuUsuario = ({ navigation, onClose, temaOscuro, alternarTema }) => {
     textoSecundario: temaOscuro ? '#a0aec0' : '#4a5568',
     borde: temaOscuro ? '#4a5568' : '#e2e8f0',
     primario: temaOscuro ? '#667eea' : '#4f46e5',
-    overlay: temaOscuro ? 'rgba(0,0,0,0.5)' : 'rgba(0,0,0,0.3)'
+    overlay: temaOscuro ? 'rgba(0,0,0,0.5)' : 'rgba(0,0,0,0.3)',
+    modalFondo: temaOscuro ? '#1e1e1e' : '#ffffff'
   };
 
   useEffect(() => {
@@ -59,6 +65,28 @@ const MenuUsuario = ({ navigation, onClose, temaOscuro, alternarTema }) => {
     handleClose();
   };
 
+  const handleShareApp = async () => {
+    try {
+      const message = '¡Descarga nuestra aplicación!';
+      const url = 'https://www.mediafire.com/file/3apn1aoubwdl7wn/AppUTR.apk/file'; // Reemplaza con tu URL real
+      
+      if (Platform.OS === 'android') {
+        await Share.share({
+          message: `${message} ${url}`,
+          title: 'Compartir App'
+        });
+      } else {
+        await Share.share({
+          message: `${message} ${url}`,
+          url: url,
+          title: 'Compartir App'
+        });
+      }
+    } catch (error) {
+      console.error('Error al compartir:', error.message);
+    }
+  };
+
   const menuItems = [
     {
       title: 'Solicitar Préstamo',
@@ -70,7 +98,20 @@ const MenuUsuario = ({ navigation, onClose, temaOscuro, alternarTema }) => {
       icon: 'assignment-return',
       route: 'DevolucionesUsuarios'
     },
+    { 
+      title: 'Compartir App',
+      icon: 'share',
+      action: () => setModalVisible(true)
+    },
   ];
+
+  const handleMenuItemPress = (item) => {
+    if (item.route) {
+      handleNavigation(item.route);
+    } else if (item.action) {
+      item.action();
+    }
+  };
 
   const renderMenuItem = (item) => (
     <TouchableOpacity
@@ -80,7 +121,7 @@ const MenuUsuario = ({ navigation, onClose, temaOscuro, alternarTema }) => {
         { backgroundColor: colores.fondo },
         activeRoute === item.route && { backgroundColor: `${colores.primario}20` }
       ]}
-      onPress={() => handleNavigation(item.route)}
+      onPress={() => handleMenuItemPress(item)}
       activeOpacity={0.7}
     >
       <Icon 
@@ -134,8 +175,6 @@ const MenuUsuario = ({ navigation, onClose, temaOscuro, alternarTema }) => {
           showsVerticalScrollIndicator={false}
         >
           {menuItems.map(renderMenuItem)}
-
-         
         </ScrollView>
 
         <TouchableOpacity 
@@ -145,6 +184,54 @@ const MenuUsuario = ({ navigation, onClose, temaOscuro, alternarTema }) => {
           <Icon name="exit-to-app" size={20} color="#e53935" />
           <Text style={styles.logoutText}>Cerrar aplicación</Text>
         </TouchableOpacity>
+
+        {/* Modal para compartir */}
+        <Modal
+          animationType="fade"
+          transparent={true}
+          visible={modalVisible}
+          onRequestClose={() => setModalVisible(false)}
+        >
+          <View style={styles.modalContainer}>
+            <View style={[styles.modalContent, { backgroundColor: colores.modalFondo }]}>
+              <TouchableOpacity 
+                style={styles.closeButton}
+                onPress={() => setModalVisible(false)}
+              >
+                <Icon name="close" size={24} color={colores.texto} />
+              </TouchableOpacity>
+              
+              <Text style={[styles.modalTitle, { color: colores.texto }]}>Compartir la App</Text>
+              
+              <Image
+                source={require('../../assets/APPUTR-1024.png')}
+                style={styles.qrImage}
+                resizeMode="contain"
+              />
+              
+              <Text style={[styles.modalText, { color: colores.textoSecundario }]}>
+                Escanea este código para descargar la aplicación
+              </Text>
+              
+              <View style={styles.buttonContainer}>
+                <TouchableOpacity 
+                  style={[styles.actionButton, { backgroundColor: '#e0e0e0', marginRight: 10 }]}
+                  onPress={() => setModalVisible(false)}
+                >
+                  <Text style={[styles.actionButtonText, { color: '#333' }]}>Cerrar</Text>
+                </TouchableOpacity>
+                
+                <TouchableOpacity 
+                  style={[styles.actionButton, { backgroundColor: colores.primario }]}
+                  onPress={handleShareApp}
+                >
+                  <Icon name="share" size={18} color="#fff" style={styles.shareIcon} />
+                  <Text style={[styles.actionButtonText, { color: '#fff' }]}>Compartir</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
       </Animated.View>
     </>
   );
@@ -222,6 +309,70 @@ const styles = StyleSheet.create({
     fontSize: 15,
     marginLeft: 12,
     fontWeight: '500',
+  },
+  modalContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0,0,0,0.5)',
+  },
+  modalContent: {
+    width: '90%',
+    maxWidth: 350,
+    padding: 20,
+    borderRadius: 12,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 5,
+  },
+  closeButton: {
+    alignSelf: 'flex-end',
+    padding: 5,
+    marginBottom: 10,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    marginBottom: 15,
+    textAlign: 'center',
+  },
+  qrImage: {
+    width: 200,
+    height: 200,
+    marginVertical: 15,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+  },
+  modalText: {
+    fontSize: 14,
+    textAlign: 'center',
+    marginBottom: 20,
+    paddingHorizontal: 10,
+  },
+  buttonContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    width: '100%',
+    marginTop: 10,
+  },
+  actionButton: {
+    flex: 1,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 12,
+    borderRadius: 6,
+  },
+  actionButtonText: {
+    fontSize: 16,
+    fontWeight: '500',
+  },
+  shareIcon: {
+    marginRight: 8,
   },
 });
 

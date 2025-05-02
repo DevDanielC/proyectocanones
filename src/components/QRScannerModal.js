@@ -9,15 +9,18 @@ import {
   StyleSheet,
   Platform,
   SafeAreaView,
+  Alert,
+  Dimensions
 } from "react-native";
 import { Camera, CameraView } from "expo-camera";
 import { MaterialIcons } from "@expo/vector-icons";
 
 const QRScannerModal = ({ visible, onClose, onScan }) => {
   const [hasPermission, setHasPermission] = useState(null);
-  const [scanned, setScanned] = useState(false);
   const [cameraReady, setCameraReady] = useState(false);
   const [facing, setFacing] = useState("back");
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [torchEnabled, setTorchEnabled] = useState(false);
 
   useEffect(() => {
     let isMounted = true;
@@ -42,8 +45,8 @@ const QRScannerModal = ({ visible, onClose, onScan }) => {
 
     if (visible) {
       requestCameraPermission();
-    } else {
-      setScanned(false);
+      setIsProcessing(false); // Resetear estado al abrir
+      setTorchEnabled(false); // Apagar flash al abrir
     }
 
     return () => {
@@ -51,30 +54,55 @@ const QRScannerModal = ({ visible, onClose, onScan }) => {
     };
   }, [visible]);
 
-  const handleBarCodeScanned = ({ data }) => {
-    if (!cameraReady || scanned || !data) return;
-  
+  const handleBarCodeScanned = async ({ data }) => {
+    if (!cameraReady || isProcessing || !data) return;
+
+    setIsProcessing(true); // Bloquear nuevos escaneos mientras procesamos
+
     try {
-      // Extraer solo el ID numérico de la URL (si viene en formato URL)
       let equipoId = data;
       
-      // Si es una URL, extraemos el ID
-      if (data.startsWith('equipos://detalles/')) {
-        equipoId = data.split('/').pop(); // Obtiene el último segmento de la URL
+      // Extraer ID si es una URL
+      if (data.startsWith('http') || data.startsWith('equipos://')) {
+        const urlParts = data.split('/');
+        equipoId = urlParts[urlParts.length - 1] || urlParts[urlParts.length - 2];
       }
-  
-      // Validar que sea un número
-      if (!/^\d+$/.test(equipoId)) {
+
+      // Validación del ID
+      if (!equipoId || !/^[a-zA-Z0-9-_]+$/.test(equipoId)) {
         throw new Error('Formato de ID inválido');
       }
-  
-      setScanned(true);
-      onScan(equipoId); // Enviamos solo el ID numérico
-      onClose();
+
+      // Mostrar confirmación antes de procesar
+      Alert.alert(
+        "Código escaneado",
+        `ID detectado: ${equipoId}\n\n¿Deseas procesar este código?`,
+        [
+          {
+            text: "Cancelar",
+            onPress: () => {
+              setIsProcessing(false);
+            },
+            style: "cancel"
+          },
+          {
+            text: "Confirmar",
+            onPress: () => {
+              onScan(equipoId);
+              setIsProcessing(false);
+            }
+          }
+        ],
+        { cancelable: true, onDismiss: () => setIsProcessing(false) }
+      );
+
     } catch (error) {
-      console.error("Error al procesar código QR:", error);
-      Alert.alert("Error", "El código QR escaneado no es válido");
-      setScanned(false); // Permite volver a escanear
+      console.error("Error al procesar QR:", error);
+      Alert.alert(
+        "Error",
+        "El código QR escaneado no es válido. Por favor intenta nuevamente.",
+        [{ text: "OK", onPress: () => setIsProcessing(false) }]
+      );
     }
   };
 
@@ -85,6 +113,11 @@ const QRScannerModal = ({ visible, onClose, onScan }) => {
 
   const toggleCameraFacing = () => {
     setFacing(current => (current === "back" ? "front" : "back"));
+    setTorchEnabled(false); // Apagar flash al cambiar cámara
+  };
+
+  const toggleTorch = () => {
+    setTorchEnabled(current => !current);
   };
 
   if (!visible) return null;
@@ -109,14 +142,26 @@ const QRScannerModal = ({ visible, onClose, onScan }) => {
           <MaterialIcons name="no-photography" size={50} color="#dc3545" />
           <Text style={styles.permissionText}>Acceso a la cámara denegado</Text>
           <Text style={styles.permissionHint}>
-            Por favor habilita los permisos de cámara en la configuración de tu
-            dispositivo
+            Para escanear códigos QR, necesitamos acceso a la cámara.
           </Text>
-          <TouchableOpacity style={styles.button} onPress={handleOpenSettings}>
+          <Text style={styles.permissionSubHint}>
+            Por favor habilita los permisos en la configuración de tu dispositivo.
+          </Text>
+          
+          <TouchableOpacity 
+            style={styles.button} 
+            onPress={handleOpenSettings}
+            activeOpacity={0.7}
+          >
             <Text style={styles.buttonText}>Abrir Configuración</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.cancelButton} onPress={onClose}>
-            <Text style={styles.cancelButtonText}>Cancelar</Text>
+          
+          <TouchableOpacity 
+            style={styles.cancelButton} 
+            onPress={onClose}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.cancelButtonText}>Volver</Text>
           </TouchableOpacity>
         </View>
       </Modal>
@@ -135,11 +180,12 @@ const QRScannerModal = ({ visible, onClose, onScan }) => {
         <CameraView
           style={StyleSheet.absoluteFillObject}
           facing={facing}
-          onBarcodeScanned={scanned ? undefined : handleBarCodeScanned}
+          onBarcodeScanned={isProcessing ? undefined : handleBarCodeScanned}
           onCameraReady={() => setCameraReady(true)}
           barcodeScannerSettings={{
-            barcodeTypes: ["qr"],
+            barcodeTypes: ["qr", "pdf417", "ean13", "upc_a", "code39"],
           }}
+          enableTorch={torchEnabled}
         >
           <View style={styles.overlay}>
             <View style={styles.frame}>
@@ -148,24 +194,55 @@ const QRScannerModal = ({ visible, onClose, onScan }) => {
               <View style={styles.cornerBottomLeft} />
               <View style={styles.cornerBottomRight} />
             </View>
-            <Text style={styles.scanText}>Escanea el código QR del equipo</Text>
+            
+            <Text style={styles.scanText}>
+              {isProcessing ? "Procesando código..." : "Enfoca el código QR dentro del marco"}
+            </Text>
+            
+            {isProcessing && (
+              <View style={styles.processingContainer}>
+                <ActivityIndicator size="large" color="#FFFFFF" />
+                <Text style={styles.processingText}>Validando código...</Text>
+              </View>
+            )}
           </View>
         </CameraView>
 
-        <TouchableOpacity style={styles.closeButton} onPress={onClose}>
-          <MaterialIcons name="close" size={30} color="white" />
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={styles.flipButton}
-          onPress={toggleCameraFacing}
-        >
-          <MaterialIcons name="flip-camera-ios" size={30} color="white" />
-        </TouchableOpacity>
+        {/* Controles de la cámara */}
+        <View style={styles.controlsContainer}>
+          <TouchableOpacity 
+            style={styles.controlButton} 
+            onPress={toggleTorch}
+            disabled={facing === 'front'}
+          >
+            <MaterialIcons 
+              name={torchEnabled ? "flash-on" : "flash-off"} 
+              size={30} 
+              color={facing === 'front' ? 'rgba(255,255,255,0.3)' : 'white'} 
+            />
+          </TouchableOpacity>
+          
+          <TouchableOpacity 
+            style={styles.controlButton} 
+            onPress={toggleCameraFacing}
+          >
+            <MaterialIcons name="flip-camera-ios" size={30} color="white" />
+          </TouchableOpacity>
+          
+          <TouchableOpacity 
+            style={styles.controlButton} 
+            onPress={onClose}
+          >
+            <MaterialIcons name="close" size={30} color="white" />
+          </TouchableOpacity>
+        </View>
       </SafeAreaView>
     </Modal>
   );
 };
+
+const windowWidth = Dimensions.get('window').width;
+const frameSize = windowWidth * 0.7;
 
 const styles = StyleSheet.create({
   container: {
@@ -176,17 +253,18 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: "rgba(0,0,0,0.7)",
-    padding: 20,
+    backgroundColor: "rgba(0,0,0,0.9)",
+    padding: 30,
   },
   loadingText: {
     color: "white",
     marginTop: 20,
     fontSize: 16,
+    textAlign: "center",
   },
   permissionText: {
     color: "white",
-    fontSize: 20,
+    fontSize: 22,
     fontWeight: "bold",
     marginTop: 20,
     textAlign: "center",
@@ -194,32 +272,44 @@ const styles = StyleSheet.create({
   permissionHint: {
     color: "white",
     fontSize: 16,
+    marginTop: 15,
+    textAlign: "center",
+    paddingHorizontal: 20,
+    lineHeight: 24,
+  },
+  permissionSubHint: {
+    color: "rgba(255,255,255,0.7)",
+    fontSize: 14,
     marginTop: 10,
     textAlign: "center",
     paddingHorizontal: 30,
+    lineHeight: 20,
   },
   button: {
     backgroundColor: "#4a6da7",
-    padding: 15,
-    borderRadius: 10,
+    paddingVertical: 15,
+    paddingHorizontal: 30,
+    borderRadius: 30,
     marginTop: 30,
-    width: "80%",
+    minWidth: 200,
     alignItems: "center",
+    justifyContent: "center",
   },
   buttonText: {
     color: "white",
     fontSize: 16,
-    fontWeight: "bold",
+    fontWeight: "600",
   },
   cancelButton: {
     padding: 15,
-    marginTop: 15,
-    width: "80%",
+    marginTop: 20,
     alignItems: "center",
+    justifyContent: "center",
   },
   cancelButtonText: {
     color: "white",
     fontSize: 16,
+    fontWeight: "500",
   },
   overlay: {
     flex: 1,
@@ -228,10 +318,12 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(0,0,0,0.5)",
   },
   frame: {
-    width: 250,
-    height: 250,
+    width: frameSize,
+    height: frameSize,
     position: "relative",
     marginBottom: 30,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.3)",
   },
   cornerTopLeft: {
     position: "absolute",
@@ -241,7 +333,7 @@ const styles = StyleSheet.create({
     height: 50,
     borderLeftWidth: 4,
     borderTopWidth: 4,
-    borderColor: "white",
+    borderColor: "#4a6da7",
   },
   cornerTopRight: {
     position: "absolute",
@@ -251,7 +343,7 @@ const styles = StyleSheet.create({
     height: 50,
     borderRightWidth: 4,
     borderTopWidth: 4,
-    borderColor: "white",
+    borderColor: "#4a6da7",
   },
   cornerBottomLeft: {
     position: "absolute",
@@ -261,7 +353,7 @@ const styles = StyleSheet.create({
     height: 50,
     borderLeftWidth: 4,
     borderBottomWidth: 4,
-    borderColor: "white",
+    borderColor: "#4a6da7",
   },
   cornerBottomRight: {
     position: "absolute",
@@ -271,28 +363,46 @@ const styles = StyleSheet.create({
     height: 50,
     borderRightWidth: 4,
     borderBottomWidth: 4,
-    borderColor: "white",
+    borderColor: "#4a6da7",
   },
   scanText: {
     color: "white",
     fontSize: 16,
     marginTop: 20,
-  },
-  closeButton: {
-    position: "absolute",
-    top: Platform.OS === "ios" ? 50 : 30,
-    right: 20,
+    textAlign: "center",
+    paddingHorizontal: 40,
     backgroundColor: "rgba(0,0,0,0.5)",
     borderRadius: 20,
-    padding: 10,
+    paddingVertical: 10,
   },
-  flipButton: {
-    position: "absolute",
-    top: Platform.OS === "ios" ? 50 : 30,
-    left: 20,
-    backgroundColor: "rgba(0,0,0,0.5)",
-    borderRadius: 20,
-    padding: 10,
+  processingContainer: {
+    marginTop: 30,
+    alignItems: "center",
+  },
+  processingText: {
+    color: "white",
+    marginTop: 10,
+    fontSize: 14,
+  },
+  controlsContainer: {
+    position: 'absolute',
+    bottom: Platform.OS === 'ios' ? 40 : 20,
+    left: 0,
+    right: 0,
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+  },
+  controlButton: {
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    borderRadius: 30,
+    width: 60,
+    height: 60,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.2)',
   },
 });
 

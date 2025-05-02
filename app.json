@@ -34,7 +34,7 @@
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/adaptive-icon.png",
+        "foregroundImage": "./assets/utr22.png",
         "backgroundColor": "#ffffff"
       },
       "package": "com.anonymous.UTR",
