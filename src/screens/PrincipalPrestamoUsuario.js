@@ -68,6 +68,35 @@ const SolicitarPrestamoUsuario = ({ navigation }) => {
     seleccionado: temaOscuro ? '#0d47a1' : '#1976d2'
   };
 
+  // Componente ContenedorModal actualizado
+  const ContenedorModal = ({ children }) => {
+    const modalHeight = height * 0.8;
+    
+    return (
+      <Animated.View 
+        style={[
+          styles.modalContainer,
+          {
+            transform: [{
+              translateY: modalSlideAnim.interpolate({
+                inputRange: [0, 1],
+                outputRange: [modalHeight, 0]
+              })
+            }],
+            backgroundColor: colores.fondoCard,
+            height: modalHeight,
+            width: width - 32,
+            borderRadius: 16,
+          }
+        ]}
+      >
+        <View style={[styles.modalContent, { borderColor: colores.borde }]}>
+          {children}
+        </View>
+      </Animated.View>
+    );
+  };
+
   // Función para manejar el escaneo QR
   const manejarEscaneoQR = async (qrData) => {
     try {
@@ -575,32 +604,6 @@ const SolicitarPrestamoUsuario = ({ navigation }) => {
     </TouchableOpacity>
   );
 
-  // Componente ContenedorModal
-  const ContenedorModal = ({ children }) => (
-    <Animated.View 
-      style={[
-        styles.modalContainer,
-        {
-          transform: [{
-            translateY: modalSlideAnim.interpolate({
-              inputRange: [0, 1],
-              outputRange: [50, 0]
-            })
-          }],
-          opacity: modalSlideAnim,
-          backgroundColor: colores.fondoCard,
-          borderRadius: 16,
-          overflow: 'hidden',
-          marginHorizontal: 16
-        }
-      ]}
-    >
-      <View style={[styles.modalContent, { borderColor: colores.borde }]}>
-        {children}
-      </View>
-    </Animated.View>
-  );
-
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: colores.fondo }]}>
       <StatusBar barStyle={temaOscuro ? 'light-content' : 'dark-content'} backgroundColor={colores.fondoHeader} />
@@ -692,7 +695,7 @@ const SolicitarPrestamoUsuario = ({ navigation }) => {
           visible={modalEquiposVisible}
           onRequestClose={() => setModalEquiposVisible(false)}
         >
-          <View style={[styles.modalOverlay, { backgroundColor: 'rgba(0, 0, 0, 0.8)' }]}>
+          <View style={styles.modalOverlay}>
             <ContenedorModal>
               <View style={[styles.modalHeader, { 
                 backgroundColor: colores.fondoCard, 
@@ -704,45 +707,52 @@ const SolicitarPrestamoUsuario = ({ navigation }) => {
                 </Text>
               </View>
               
-              {loading ? (
-                <View style={styles.loadingContainer}>
-                  <ActivityIndicator size="large" color={colores.botonPrimario} />
-                  <Text style={[styles.loadingText, { color: colores.textoSecundario }]}>Buscando equipos...</Text>
-                </View>
-              ) : equiposDisponibles.length === 0 ? (
-                <View style={styles.emptyContainer}>
-                  <MaterialIcons name="error-outline" size={50} color={colores.textoSecundario} />
-                  <Text style={[styles.emptyText, { color: colores.textoSecundario }]}>No hay equipos disponibles en esta categoría</Text>
-                </View>
-              ) : (
-                <>
-                  <FlatList
-                    data={equiposDisponibles}
-                    renderItem={renderizarEquipo}
-                    keyExtractor={(item) => item.idequipo.toString()}
-                    contentContainerStyle={{ paddingBottom: 15 }}
-                  />
-                  <View style={[styles.confirmationContainer, { 
-                    backgroundColor: colores.fondoCard, 
-                    borderTopColor: colores.borde 
-                  }]}>
-                    <TouchableOpacity 
-                      style={[
-                        styles.confirmButton,
-                        { backgroundColor: colores.botonPrimario },
-                        !equipoPreseleccionado && { backgroundColor: colores.botonDesactivado }
-                      ]}
-                      onPress={() => equipoPreseleccionado && manejarEquipoSeleccionado(equipoPreseleccionado)}
-                      disabled={!equipoPreseleccionado}
-                      activeOpacity={0.8}
-                    >
-                      <Text style={styles.confirmButtonText}>
-                        {equipoPreseleccionado ? `Confirmar ${equipoPreseleccionado.nombreequipo}` : 'Seleccione un equipo'}
-                      </Text>
-                    </TouchableOpacity>
+              <ScrollView 
+                style={styles.modalScrollContent}
+                contentContainerStyle={{ paddingBottom: 15 }}
+              >
+                {loading ? (
+                  <View style={styles.loadingContainer}>
+                    <ActivityIndicator size="large" color={colores.botonPrimario} />
+                    <Text style={[styles.loadingText, { color: colores.textoSecundario }]}>
+                      Buscando equipos...
+                    </Text>
                   </View>
-                </>
-              )}
+                ) : equiposDisponibles.length === 0 ? (
+                  <View style={styles.emptyContainer}>
+                    <MaterialIcons name="error-outline" size={50} color={colores.textoSecundario} />
+                    <Text style={[styles.emptyText, { color: colores.textoSecundario }]}>
+                      No hay equipos disponibles en esta categoría
+                    </Text>
+                  </View>
+                ) : (
+                  equiposDisponibles.map((equipo) => (
+                    <View key={equipo.idequipo.toString()}>
+                      {renderizarEquipo({ item: equipo })}
+                    </View>
+                  ))
+                )}
+              </ScrollView>
+              
+              <View style={[styles.confirmationContainer, { 
+                backgroundColor: colores.fondoCard, 
+                borderTopColor: colores.borde 
+              }]}>
+                <TouchableOpacity 
+                  style={[
+                    styles.confirmButton,
+                    { backgroundColor: colores.botonPrimario },
+                    !equipoPreseleccionado && { backgroundColor: colores.botonDesactivado }
+                  ]}
+                  onPress={() => equipoPreseleccionado && manejarEquipoSeleccionado(equipoPreseleccionado)}
+                  disabled={!equipoPreseleccionado}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.confirmButtonText}>
+                    {equipoPreseleccionado ? `Confirmar ${equipoPreseleccionado.nombreequipo}` : 'Seleccione un equipo'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
               
               <TouchableOpacity 
                 style={[styles.cancelButton, { 
@@ -752,7 +762,9 @@ const SolicitarPrestamoUsuario = ({ navigation }) => {
                 onPress={() => setModalEquiposVisible(false)}
                 activeOpacity={0.8}
               >
-                <Text style={[styles.cancelButtonText, { color: colores.texto }]}>Volver a categorías</Text>
+                <Text style={[styles.cancelButtonText, { color: colores.texto }]}>
+                  Volver a categorías
+                </Text>
               </TouchableOpacity>
             </ContenedorModal>
           </View>
@@ -765,7 +777,7 @@ const SolicitarPrestamoUsuario = ({ navigation }) => {
           visible={modalPersonalVisible}
           onRequestClose={() => setModalPersonalVisible(false)}
         >
-          <View style={[styles.modalOverlay, { backgroundColor: 'rgba(0, 0, 0, 0.8)' }]}>
+          <View style={styles.modalOverlay}>
             <ContenedorModal>
               <View style={[styles.modalHeader, { 
                 backgroundColor: colores.fondoCard, 
@@ -794,47 +806,50 @@ const SolicitarPrestamoUsuario = ({ navigation }) => {
                 onChangeText={setSearchTerm}
               />
               
-              {loading ? (
-                <View style={styles.loadingContainer}>
-                  <ActivityIndicator size="large" color={colores.botonPrimario} />
-                  <Text style={[styles.loadingText, { color: colores.textoSecundario }]}>Cargando personal...</Text>
-                </View>
-              ) : personalFiltrado.length === 0 ? (
-                <View style={styles.emptyContainer}>
-                  <Ionicons name="people-outline" size={50} color={colores.textoSecundario} />
-                  <Text style={[styles.emptyText, { color: colores.textoSecundario }]}>
-                    {searchTerm ? 'No se encontraron coincidencias' : 'No hay personal disponible'}
-                  </Text>
-                </View>
-              ) : (
-                <>
-                  <FlatList
-                    data={personalFiltrado}
-                    renderItem={renderizarPersonal}
-                    keyExtractor={(item) => item.idpersonal.toString()}
-                    contentContainerStyle={{ paddingBottom: 15 }}
-                  />
-                  <View style={[styles.confirmationContainer, { 
-                    backgroundColor: colores.fondoCard, 
-                    borderTopColor: colores.borde 
-                  }]}>
-                    <TouchableOpacity 
-                      style={[
-                        styles.confirmButton,
-                        { backgroundColor: colores.botonPrimario },
-                        !personalPreseleccionado && { backgroundColor: colores.botonDesactivado }
-                      ]}
-                      onPress={() => personalPreseleccionado && manejarPersonalSeleccionado(personalPreseleccionado)}
-                      disabled={!personalPreseleccionado}
-                      activeOpacity={0.8}
-                    >
-                      <Text style={styles.confirmButtonText}>
-                        {personalPreseleccionado ? `Confirmar ${personalPreseleccionado.nombre_completo}` : 'Seleccione una persona'}
-                      </Text>
-                    </TouchableOpacity>
+              <ScrollView 
+                style={styles.modalScrollContent}
+                contentContainerStyle={{ paddingBottom: 15 }}
+              >
+                {loading ? (
+                  <View style={styles.loadingContainer}>
+                    <ActivityIndicator size="large" color={colores.botonPrimario} />
+                    <Text style={[styles.loadingText, { color: colores.textoSecundario }]}>Cargando personal...</Text>
                   </View>
-                </>
-              )}
+                ) : personalFiltrado.length === 0 ? (
+                  <View style={styles.emptyContainer}>
+                    <Ionicons name="people-outline" size={50} color={colores.textoSecundario} />
+                    <Text style={[styles.emptyText, { color: colores.textoSecundario }]}>
+                      {searchTerm ? 'No se encontraron coincidencias' : 'No hay personal disponible'}
+                    </Text>
+                  </View>
+                ) : (
+                  personalFiltrado.map((persona) => (
+                    <View key={persona.idpersonal.toString()}>
+                      {renderizarPersonal({ item: persona })}
+                    </View>
+                  ))
+                )}
+              </ScrollView>
+              
+              <View style={[styles.confirmationContainer, { 
+                backgroundColor: colores.fondoCard, 
+                borderTopColor: colores.borde 
+              }]}>
+                <TouchableOpacity 
+                  style={[
+                    styles.confirmButton,
+                    { backgroundColor: colores.botonPrimario },
+                    !personalPreseleccionado && { backgroundColor: colores.botonDesactivado }
+                  ]}
+                  onPress={() => personalPreseleccionado && manejarPersonalSeleccionado(personalPreseleccionado)}
+                  disabled={!personalPreseleccionado}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.confirmButtonText}>
+                    {personalPreseleccionado ? `Confirmar ${personalPreseleccionado.nombre_completo}` : 'Seleccione una persona'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
               
               <TouchableOpacity 
                 style={[styles.cancelButton, { 
@@ -1026,15 +1041,22 @@ const styles = StyleSheet.create({
   },
   modalOverlay: {
     flex: 1,
-    justifyContent: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
   },
   modalContainer: {
-    flex: 1,
-    maxHeight: Dimensions.get('window').height * 0.85,
-    marginTop: 'auto',
-    marginBottom: 'auto',
+    position: 'absolute',
+    bottom: 0,
+    left: 16,
+    right: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 5,
   },
   modalContent: {
+    flex: 1,
     borderRadius: 16,
     overflow: 'hidden',
   },
@@ -1053,6 +1075,10 @@ const styles = StyleSheet.create({
   modalSubtitle: {
     fontSize: 14,
     marginTop: 2,
+  },
+  modalScrollContent: {
+    flex: 1,
+    paddingBottom: 80
   },
   searchInput: {
     height: 48,
